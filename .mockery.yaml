@@ -29,6 +29,7 @@ packages:
       WithdrawRequestRepository:
       ReviewRepository:
       WishlistRepository:
+      BannerRepository:
   erdinhrmwn/bangunin/internal/domain/service:
     interfaces:
       EmailEnqueuer:

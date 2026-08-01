@@ -142,7 +142,7 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 
 ### Functional Requirements
 - [x] FR-7.1 Wishlist
-- [ ] FR-7.2 Banner
+- [x] FR-7.2 Banner
 - [ ] FR-7.3 Supplier report
 - [ ] FR-7.4 Admin report
 - [ ] FR-7.5 Security hardening

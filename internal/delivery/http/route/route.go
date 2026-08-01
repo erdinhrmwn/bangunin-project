@@ -12,7 +12,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, payout *handler.PayoutHandler, review *handler.ReviewHandler, wishlist *handler.WishlistHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, payout *handler.PayoutHandler, review *handler.ReviewHandler, wishlist *handler.WishlistHandler, banner *handler.BannerHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
 	app.Get("/health", health.Check)
 
 	// No auth middleware — protected by X-Internal-Secret header check in the handler (FR-5.6).
@@ -114,6 +114,10 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	adminGroup.Get("/withdraws/:id", payout.GetAdmin)
 	adminGroup.Post("/withdraws/:id/approve", payout.Approve)
 	adminGroup.Post("/withdraws/:id/reject", payout.Reject)
+	adminGroup.Post("/banners", banner.Create)
+	adminGroup.Put("/banners/:id", banner.Update)
+	adminGroup.Delete("/banners/:id", banner.Delete)
+	adminGroup.Get("/banners", banner.ListAdmin)
 
 	mediaGroup := api.Group("/media", authMw)
 	mediaGroup.Post("/upload", media.Upload)
@@ -129,4 +133,5 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	api.Get("/products/:slug", optionalAuthMw, catalog.Detail)
 	api.Get("/suppliers/:slug", catalog.SupplierStore)
 	api.Get("/products/:slug/reviews", review.ListByProduct)
+	api.Get("/banners", banner.ListActive)
 }

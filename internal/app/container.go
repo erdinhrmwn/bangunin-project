@@ -32,6 +32,7 @@ import (
 	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
 	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
 	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
+	bannerusecase "erdinhrmwn/bangunin/internal/usecase/banner"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
@@ -73,6 +74,7 @@ type Container struct {
 	Payout        *handler.PayoutHandler
 	Review        *handler.ReviewHandler
 	Wishlist      *handler.WishlistHandler
+	Banner        *handler.BannerHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -114,6 +116,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	withdrawRepo := postgresrepo.NewWithdrawRequestRepository(db)
 	reviewRepo := postgresrepo.NewReviewRepository(db)
 	wishlistRepo := postgresrepo.NewWishlistRepository(db)
+	bannerRepo := postgresrepo.NewBannerRepository(db)
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 	stockLock := redisrepo.NewStockLock(rdb)
@@ -156,6 +159,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	)
 	reviewUC := reviewusecase.New(reviewRepo, orderRepo, productVariantRepo, productRepo)
 	wishlistUC := wishlistusecase.New(wishlistRepo, productRepo)
+	bannerUC := bannerusecase.New(bannerRepo, rdb)
 	checkoutUC := checkoutusecase.New(
 		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
 		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
@@ -190,6 +194,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Payout:        handler.NewPayoutHandler(payoutUC, supplierRepo),
 		Review:        handler.NewReviewHandler(reviewUC, productRepo),
 		Wishlist:      handler.NewWishlistHandler(wishlistUC),
+		Banner:        handler.NewBannerHandler(bannerUC),
 	}, nil
 }
 
