@@ -11,11 +11,14 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository"
+	"erdinhrmwn/bangunin/internal/usecase/catalog"
 	"erdinhrmwn/bangunin/pkg/apperr"
+	"erdinhrmwn/bangunin/pkg/cache"
 )
 
 const maxImages = 8
@@ -24,10 +27,17 @@ type Usecase struct {
 	products repository.ProductRepository
 	variants repository.ProductVariantRepository
 	images   repository.ProductImageRepository
+	rdb      *redis.Client
 }
 
-func New(products repository.ProductRepository, variants repository.ProductVariantRepository, images repository.ProductImageRepository) *Usecase {
-	return &Usecase{products: products, variants: variants, images: images}
+func New(products repository.ProductRepository, variants repository.ProductVariantRepository, images repository.ProductImageRepository, rdb *redis.Client) *Usecase {
+	return &Usecase{products: products, variants: variants, images: images, rdb: rdb}
+}
+
+// invalidateDetail deletes the public catalog cache entry for slug (FR-4.7,
+// AC-4.d: edits must be visible without waiting for the TTL).
+func (u *Usecase) invalidateDetail(ctx context.Context, slug string) {
+	_ = cache.Delete(ctx, u.rdb, catalog.ProductDetailCacheKey(slug))
 }
 
 type ProductInput struct {
@@ -67,6 +77,7 @@ func (u *Usecase) UpdateProduct(ctx context.Context, supplierID, id uuid.UUID, i
 	if err != nil {
 		return nil, err
 	}
+	oldSlug := p.Slug
 	if in.Name != p.Name {
 		slug, err := u.uniqueSlug(ctx, in.Name, p.ID)
 		if err != nil {
@@ -81,6 +92,10 @@ func (u *Usecase) UpdateProduct(ctx context.Context, supplierID, id uuid.UUID, i
 
 	if err := u.products.Update(ctx, p); err != nil {
 		return nil, err
+	}
+	u.invalidateDetail(ctx, oldSlug)
+	if p.Slug != oldSlug {
+		u.invalidateDetail(ctx, p.Slug)
 	}
 	return p, nil
 }
@@ -110,6 +125,7 @@ func (u *Usecase) Publish(ctx context.Context, supplierID, id uuid.UUID) (*entit
 	if err := u.products.Update(ctx, p); err != nil {
 		return nil, err
 	}
+	u.invalidateDetail(ctx, p.Slug)
 	return p, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -18,10 +19,15 @@ import (
 
 func newUsecase(t *testing.T) (*productusecase.Usecase, *mocks.MockProductRepository, *mocks.MockProductVariantRepository, *mocks.MockProductImageRepository) {
 	t.Helper()
+	rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		t.Skipf("redis not reachable: %v", err)
+	}
+	t.Cleanup(func() { _ = rdb.Close() })
 	products := mocks.NewMockProductRepository(t)
 	variants := mocks.NewMockProductVariantRepository(t)
 	images := mocks.NewMockProductImageRepository(t)
-	return productusecase.New(products, variants, images), products, variants, images
+	return productusecase.New(products, variants, images, rdb), products, variants, images
 }
 
 func appErrCode(t *testing.T, err error) string {
