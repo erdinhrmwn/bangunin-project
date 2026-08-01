@@ -54,6 +54,10 @@ services:
       GRPC_ADDR: ":50051"
       HTTP_ADDR: ":8081"
       MONOLITH_CALLBACK_URL: "http://api:8080/internal/payments/callback"
+      INTERNAL_SECRET: "${APP_PAYMENT_INTERNAL_SECRET}"
+      XENDIT_SECRET_KEY: "${APP_XENDIT_SECRET_KEY}"
+      XENDIT_CALLBACK_TOKEN: "${APP_XENDIT_CALLBACK_TOKEN}"
+      MOCK: "${APP_XENDIT_MOCK:-true}"
     ports:
       - "50051:50051"
       - "8081:8081"

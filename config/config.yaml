@@ -36,3 +36,7 @@ r2:
 
 catalog:
   low_stock_threshold: 5
+
+payment:
+  grpc_addr: "localhost:50051"
+  internal_secret: "change-me-in-env"

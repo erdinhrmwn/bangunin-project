@@ -20,6 +20,7 @@ type Config struct {
 	RajaOngkir RajaOngkirConfig
 	R2         R2Config
 	Catalog    CatalogConfig
+	Payment    PaymentConfig
 }
 
 type AppConfig struct {
@@ -69,6 +70,13 @@ type R2Config struct {
 
 type CatalogConfig struct {
 	LowStockThreshold int
+}
+
+// PaymentConfig configures the monolith's gRPC client to services/payment
+// and the shared secret used to authenticate its inbound callback.
+type PaymentConfig struct {
+	GRPCAddr       string
+	InternalSecret string
 }
 
 // requiredKeys are the config keys that must be non-empty for the app to
@@ -137,6 +145,10 @@ func Load(configPath string) (*Config, error) {
 		},
 		Catalog: CatalogConfig{
 			LowStockThreshold: v.GetInt("catalog.low_stock_threshold"),
+		},
+		Payment: PaymentConfig{
+			GRPCAddr:       v.GetString("payment.grpc_addr"),
+			InternalSecret: v.GetString("payment.internal_secret"),
 		},
 	}
 

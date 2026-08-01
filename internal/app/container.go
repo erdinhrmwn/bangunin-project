@@ -56,6 +56,7 @@ type Container struct {
 	Product       *handler.ProductHandler
 	Inventory     *handler.InventoryHandler
 	Catalog       *handler.CatalogHandler
+	Internal      *handler.InternalHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -127,6 +128,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Product:       handler.NewProductHandler(productUC, supplierRepo),
 		Inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
 		Catalog:       handler.NewCatalogHandler(catalogUC),
+		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret),
 	}, nil
 }
 

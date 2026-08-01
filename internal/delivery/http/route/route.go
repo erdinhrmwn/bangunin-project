@@ -12,8 +12,11 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
 	app.Get("/health", health.Check)
+
+	// No auth middleware — protected by X-Internal-Secret header check in the handler (FR-5.6).
+	app.Post("/internal/payments/callback", internal.PaymentCallback)
 
 	api := app.Group("/api/v1")
 
