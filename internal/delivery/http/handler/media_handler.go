@@ -32,7 +32,7 @@ func (h *MediaHandler) Upload(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	res, err := h.media.Upload(c.Context(), scope, fh.Header.Get("Content-Type"), fh.Size, f)
 	if err != nil {

@@ -57,7 +57,7 @@ func main() {
 			return fmt.Errorf("media:process: download %s: %w", p.Key, err)
 		}
 		data, contentType, err := imageresize.Resize(obj)
-		obj.Close()
+		_ = obj.Close()
 		if err != nil {
 			return fmt.Errorf("media:process: resize %s: %w", p.Key, err)
 		}
