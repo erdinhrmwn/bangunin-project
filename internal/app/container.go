@@ -29,7 +29,9 @@ import (
 	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
 	notificationusecase "erdinhrmwn/bangunin/internal/usecase/notification"
 	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
+	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
 	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
+	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	"erdinhrmwn/bangunin/pkg/jwt"
@@ -67,6 +69,8 @@ type Container struct {
 	Checkout      *handler.CheckoutHandler
 	Order         *handler.OrderHandler
 	Shipment      *handler.ShipmentHandler
+	Payout        *handler.PayoutHandler
+	Review        *handler.ReviewHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -105,6 +109,8 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	stockReservationRepo := postgresrepo.NewStockReservationRepository(db)
 	userAddressRepo := postgresrepo.NewUserAddressRepository(db)
 	cartRepo := postgresrepo.NewCartRepository(db)
+	withdrawRepo := postgresrepo.NewWithdrawRequestRepository(db)
+	reviewRepo := postgresrepo.NewReviewRepository(db)
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 	stockLock := redisrepo.NewStockLock(rdb)
@@ -141,6 +147,11 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		ledgerRepo, supplierBalanceRepo,
 	)
 	cartUC := cartusecase.New(cartRepo, productVariantRepo, productRepo)
+	payoutUC := payoutusecase.New(
+		withdrawRepo, supplierBalanceRepo, supplierBankRepo, supplierRepo, userRepo,
+		auditLogRepo, notificationRepo, enqueuer, ledgerRepo, paymentClient,
+	)
+	reviewUC := reviewusecase.New(reviewRepo, orderRepo, productVariantRepo, productRepo)
 	checkoutUC := checkoutusecase.New(
 		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
 		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
@@ -172,6 +183,8 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Checkout:      handler.NewCheckoutHandler(checkoutUC),
 		Order:         handler.NewOrderHandler(orderUC, supplierRepo),
 		Shipment:      handler.NewShipmentHandler(orderUC),
+		Payout:        handler.NewPayoutHandler(payoutUC, supplierRepo),
+		Review:        handler.NewReviewHandler(reviewUC, productRepo),
 	}, nil
 }
 
