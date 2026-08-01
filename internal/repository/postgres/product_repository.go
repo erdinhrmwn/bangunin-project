@@ -268,7 +268,7 @@ func (r *ProductRepository) Search(ctx context.Context, params repository.Search
 
 	q := fmt.Sprintf(`
 		SELECT id, slug, name, primary_image, price_min, price_max, unit,
-			supplier_name, supplier_city, rating_avg, rating_count, %s
+			supplier_name, supplier_city, rating_avg, rating_count, %s::text AS cursor_val
 		FROM (
 			SELECT
 				p.id, p.slug, p.name, p.created_at, p.rating_avg, p.rating_count,
