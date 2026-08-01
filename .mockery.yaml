@@ -28,6 +28,7 @@ packages:
       SupplierBalanceRepository:
       WithdrawRequestRepository:
       ReviewRepository:
+      WishlistRepository:
   erdinhrmwn/bangunin/internal/domain/service:
     interfaces:
       EmailEnqueuer:

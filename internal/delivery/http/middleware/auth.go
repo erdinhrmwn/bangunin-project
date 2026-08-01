@@ -36,6 +36,32 @@ func Auth(jwtSvc *jwt.Service, authRepo repository.AuthRepository) fiber.Handler
 	}
 }
 
+// OptionalAuth parses the Bearer JWT if present and injects claims into
+// context, but never rejects — used by public routes that adapt their
+// response when the caller happens to be logged in (FR-7.1 is_wishlisted).
+func OptionalAuth(jwtSvc *jwt.Service, authRepo repository.AuthRepository) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		header := c.Get("Authorization")
+		token, ok := strings.CutPrefix(header, "Bearer ")
+		if !ok || token == "" {
+			return c.Next()
+		}
+
+		claims, err := jwtSvc.Parse(token)
+		if err != nil {
+			return c.Next()
+		}
+
+		blacklisted, err := authRepo.IsJTIBlacklisted(c.Context(), claims.JTI)
+		if err != nil || blacklisted {
+			return c.Next()
+		}
+
+		ctxutil.SetAuth(c, claims.UserID, claims.Role, claims.JTI)
+		return c.Next()
+	}
+}
+
 func unauthorized(c fiber.Ctx) error {
 	return c.Status(fiber.StatusUnauthorized).JSON(
 		response.Error("Authentication required", nil),

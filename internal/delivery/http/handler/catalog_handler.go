@@ -4,9 +4,13 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 
+	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/domain/repository"
+	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
 	catalogusecase "erdinhrmwn/bangunin/internal/usecase/catalog"
+	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 )
@@ -14,11 +18,12 @@ import (
 // CatalogHandler serves the public storefront: search, product detail,
 // supplier store page (FR-4.6-4.9).
 type CatalogHandler struct {
-	catalog *catalogusecase.Usecase
+	catalog  *catalogusecase.Usecase
+	wishlist *wishlistusecase.Usecase
 }
 
-func NewCatalogHandler(catalog *catalogusecase.Usecase) *CatalogHandler {
-	return &CatalogHandler{catalog: catalog}
+func NewCatalogHandler(catalog *catalogusecase.Usecase, wishlist *wishlistusecase.Usecase) *CatalogHandler {
+	return &CatalogHandler{catalog: catalog, wishlist: wishlist}
 }
 
 func atoiDefault(s string, def int) int {
@@ -66,7 +71,15 @@ func (h *CatalogHandler) Detail(c fiber.Ctx) error {
 	if err != nil {
 		return errJSON(c, err)
 	}
-	return c.JSON(response.Success("OK", p))
+
+	resp := dto.ProductDetailResponse{Product: p}
+	if userID, err := uuid.Parse(ctxutil.UserID(c)); err == nil {
+		resp.IsWishlisted, err = h.wishlist.IsWishlisted(c.Context(), userID, p.ID)
+		if err != nil {
+			return errJSON(c, err)
+		}
+	}
+	return c.JSON(response.Success("OK", resp))
 }
 
 func (h *CatalogHandler) SupplierStore(c fiber.Ctx) error {

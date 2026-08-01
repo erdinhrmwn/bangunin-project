@@ -34,6 +34,7 @@ import (
 	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
+	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 	"erdinhrmwn/bangunin/pkg/jwt"
 	"erdinhrmwn/bangunin/pkg/logger"
 
@@ -71,6 +72,7 @@ type Container struct {
 	Shipment      *handler.ShipmentHandler
 	Payout        *handler.PayoutHandler
 	Review        *handler.ReviewHandler
+	Wishlist      *handler.WishlistHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -111,6 +113,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	cartRepo := postgresrepo.NewCartRepository(db)
 	withdrawRepo := postgresrepo.NewWithdrawRequestRepository(db)
 	reviewRepo := postgresrepo.NewReviewRepository(db)
+	wishlistRepo := postgresrepo.NewWishlistRepository(db)
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 	stockLock := redisrepo.NewStockLock(rdb)
@@ -152,6 +155,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		auditLogRepo, notificationRepo, enqueuer, ledgerRepo, paymentClient,
 	)
 	reviewUC := reviewusecase.New(reviewRepo, orderRepo, productVariantRepo, productRepo)
+	wishlistUC := wishlistusecase.New(wishlistRepo, productRepo)
 	checkoutUC := checkoutusecase.New(
 		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
 		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
@@ -176,7 +180,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Category:      handler.NewCategoryHandler(categoryUC),
 		Product:       handler.NewProductHandler(productUC, supplierRepo),
 		Inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
-		Catalog:       handler.NewCatalogHandler(catalogUC),
+		Catalog:       handler.NewCatalogHandler(catalogUC, wishlistUC),
 		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, orderUC),
 		Address:       handler.NewAddressHandler(userUC),
 		Cart:          handler.NewCartHandler(cartUC),
@@ -185,6 +189,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Shipment:      handler.NewShipmentHandler(orderUC),
 		Payout:        handler.NewPayoutHandler(payoutUC, supplierRepo),
 		Review:        handler.NewReviewHandler(reviewUC, productRepo),
+		Wishlist:      handler.NewWishlistHandler(wishlistUC),
 	}, nil
 }
 
