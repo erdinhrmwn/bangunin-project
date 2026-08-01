@@ -179,6 +179,65 @@ func (_c *MockOrderRepository_FindByID_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// FindItemByID provides a mock function with given fields: ctx, itemID
+func (_m *MockOrderRepository) FindItemByID(ctx context.Context, itemID uuid.UUID) (*entity.OrderItem, error) {
+	ret := _m.Called(ctx, itemID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindItemByID")
+	}
+
+	var r0 *entity.OrderItem
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*entity.OrderItem, error)); ok {
+		return rf(ctx, itemID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) *entity.OrderItem); ok {
+		r0 = rf(ctx, itemID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.OrderItem)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, itemID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrderRepository_FindItemByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindItemByID'
+type MockOrderRepository_FindItemByID_Call struct {
+	*mock.Call
+}
+
+// FindItemByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - itemID uuid.UUID
+func (_e *MockOrderRepository_Expecter) FindItemByID(ctx interface{}, itemID interface{}) *MockOrderRepository_FindItemByID_Call {
+	return &MockOrderRepository_FindItemByID_Call{Call: _e.mock.On("FindItemByID", ctx, itemID)}
+}
+
+func (_c *MockOrderRepository_FindItemByID_Call) Run(run func(ctx context.Context, itemID uuid.UUID)) *MockOrderRepository_FindItemByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockOrderRepository_FindItemByID_Call) Return(_a0 *entity.OrderItem, _a1 error) *MockOrderRepository_FindItemByID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrderRepository_FindItemByID_Call) RunAndReturn(run func(context.Context, uuid.UUID) (*entity.OrderItem, error)) *MockOrderRepository_FindItemByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListByCheckoutGroupID provides a mock function with given fields: ctx, checkoutGroupID
 func (_m *MockOrderRepository) ListByCheckoutGroupID(ctx context.Context, checkoutGroupID uuid.UUID) ([]*entity.Order, error) {
 	ret := _m.Called(ctx, checkoutGroupID)

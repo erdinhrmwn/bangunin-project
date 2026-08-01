@@ -176,6 +176,17 @@ func collectOrders(rows pgx.Rows) ([]*entity.Order, error) {
 	return out, rows.Err()
 }
 
+func (r *OrderRepository) FindItemByID(ctx context.Context, itemID uuid.UUID) (*entity.OrderItem, error) {
+	i, err := scanOrderItem(r.db.QueryRow(ctx, selectOrderItemCols+`FROM order_items WHERE id = $1`, itemID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, errs.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("postgres: find order item: %w", err)
+	}
+	return i, nil
+}
+
 const selectOrderItemCols = `SELECT id, order_id, variant_id, product_name, variant_name, unit, price, qty, weight_gram `
 
 func scanOrderItem(row rowScanner) (*entity.OrderItem, error) {

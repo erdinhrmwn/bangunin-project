@@ -23,4 +23,5 @@ type OrderRepository interface {
 
 	CreateItems(ctx context.Context, items []*entity.OrderItem) error
 	ListItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]*entity.OrderItem, error)
+	FindItemByID(ctx context.Context, itemID uuid.UUID) (*entity.OrderItem, error)
 }
