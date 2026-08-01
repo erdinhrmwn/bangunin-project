@@ -1,207 +1,207 @@
-# Requirements per Fase — Marketplace Bahan Bangunan
+# Requirements per Phase — Building Materials Marketplace
 
-Dokumen acuan implementasi. Setiap fase berisi: tujuan, ruang lingkup, functional requirements (FR), endpoint, migrasi, background jobs, dan acceptance criteria (AC) yang harus lolos sebelum fase dinyatakan selesai. Simpan sebagai `docs/requirements.md` di repo — CLAUDE.md merujuk ke dokumen ini.
+Implementation reference document. Each phase contains: goal, scope, functional requirements (FR), endpoints, migrations, background jobs, and acceptance criteria (AC) that must pass before the phase is considered done. Stored as `docs/requirements.md` in the repo — CLAUDE.md refers to this document.
 
-Konvensi: `FR-x.y` = functional requirement fase x nomor y. Semua endpoint di bawah prefix `/api/v1`. Semua response memakai envelope standar `{success, message, data, meta, errors}`.
+Convention: `FR-x.y` = functional requirement, phase x number y. All endpoints under prefix `/api/v1`. All responses use the standard envelope `{success, message, data, meta, errors}`.
 
 ---
 
-## FASE 1 — Fondasi
+## PHASE 1 — Foundation
 
-**Tujuan:** repo bisa di-clone, `docker compose up`, migrate, seed, dan menyajikan health endpoint dengan seluruh tulang punggung (config, DB, Redis, logger, middleware, error handling) siap dipakai fase berikutnya.
+**Goal:** repo can be cloned, `docker compose up`, migrate, seed, and serve the health endpoint with the full backbone (config, DB, Redis, logger, middleware, error handling) ready for the next phases.
 
-**In scope:** skeleton, tooling, infrastruktur lokal, migrasi awal, middleware dasar.
-**Out of scope:** semua fitur bisnis, gRPC client, RajaOngkir, storage.
+**In scope:** skeleton, tooling, local infrastructure, initial migrations, basic middleware.
+**Out of scope:** all business features, gRPC client, RajaOngkir, storage.
 
 ### Functional Requirements
-- **FR-1.1 Struktur project** sesuai CLAUDE.md §3. Setiap folder berisi minimal `doc.go` atau file nyata — tidak ada folder kosong yang tidak terpakai.
-- **FR-1.2 Config**: Viper membaca `config.yaml` + override env (prefix `APP_`). Struct config typed: App{Name, Env, Port}, DB{DSN, MaxConns...}, Redis, JWT{Secret, AccessTTL, RefreshTTL}, dan section kosong untuk Xendit/RajaOngkir/R2 (diisi fase terkait). Aplikasi fail-fast dengan pesan jelas jika config wajib kosong.
-- **FR-1.3 Database**: koneksi pgxpool dengan ping saat startup, graceful close saat shutdown. Migrasi via golang-migrate dijalankan `cmd/migrate` dan target Makefile.
-- **FR-1.4 Migrasi awal**: `roles` (seed: admin, supplier, user) dan `users` sesuai ERD (uuid v7 default, role_id FK, unique email, index email & status). Up dan down keduanya berfungsi.
-- **FR-1.5 Seeder**: idempotent (aman dijalankan berulang). Seed roles + 1 akun admin default dari env (`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`).
-- **FR-1.6 Redis**: client dengan ping saat startup; helper untuk get/set/del dengan TTL di `internal/repository/redis`.
-- **FR-1.7 Logger**: zerolog JSON ke stdout; level dari config; field standar (service, env). Request log middleware mencatat method, path, status, latency, request_id.
-- **FR-1.8 Middleware dasar**: recover (panic → 500 envelope + log stack), request ID (header `X-Request-ID`, generate jika kosong), CORS configurable, rate limit Redis sliding window (default 60 req/menit/IP, path-exempt: /health).
-- **FR-1.9 Response & error**: `pkg/response` (Success, Error, paginated meta) dan `pkg/apperr` — tipe AppError{Code, Message, HTTPStatus} + mapper dari domain errs (`ErrNotFound`→404, `ErrValidation`→422, `ErrUnauthorized`→401, `ErrForbidden`→403, `ErrConflict`→409, default 500 tanpa bocor detail internal).
-- **FR-1.10 Health**: `GET /health` → status app, db (ping), redis (ping), versi, uptime. 503 jika dependensi mati.
-- **FR-1.11 Worker skeleton**: `cmd/worker` menjalankan Asynq server terhubung Redis dengan 1 task dummy `system:heartbeat` terdaftar; scheduler siap namun kosong.
-- **FR-1.12 Tooling**: Makefile (run, run-worker, build, migrate-up/down/create, seed, test, lint, gen-proto placeholder), `.golangci.yml`, `.env.example` lengkap, docker-compose (postgres 16, redis 7, minio, api, worker) dengan healthcheck dan volume persist.
-- **FR-1.13 Graceful shutdown**: SIGINT/SIGTERM → berhenti terima request, tunggu in-flight max 10 dtk, tutup DB/Redis.
+- **FR-1.1 Project structure** per CLAUDE.md §3. Every folder contains at minimum a `doc.go` or a real file — no unused empty folders.
+- **FR-1.2 Config**: Viper reads `config.yaml` + env override (prefix `APP_`). Typed config struct: App{Name, Env, Port}, DB{DSN, MaxConns...}, Redis, JWT{Secret, AccessTTL, RefreshTTL}, and empty sections for Xendit/RajaOngkir/R2 (filled in during the relevant phase). App fails fast with a clear message if required config is missing.
+- **FR-1.3 Database**: pgxpool connection with ping at startup, graceful close on shutdown. Migrations via golang-migrate run through `cmd/migrate` and a Makefile target.
+- **FR-1.4 Initial migrations**: `roles` (seed: admin, supplier, user) and `users` per ERD (uuid v7 default, role_id FK, unique email, index on email & status). Both up and down work.
+- **FR-1.5 Seeder**: idempotent (safe to run repeatedly). Seeds roles + 1 default admin account from env (`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`).
+- **FR-1.6 Redis**: client with ping at startup; get/set/del helper with TTL in `internal/repository/redis`.
+- **FR-1.7 Logger**: zerolog JSON to stdout; level from config; standard fields (service, env). Request log middleware records method, path, status, latency, request_id.
+- **FR-1.8 Basic middleware**: recover (panic → 500 envelope + log stack), request ID (header `X-Request-ID`, generated if missing), configurable CORS, Redis sliding-window rate limit (default 60 req/min/IP, path-exempt: /health).
+- **FR-1.9 Response & error**: `pkg/response` (Success, Error, paginated meta) and `pkg/apperr` — AppError{Code, Message, HTTPStatus} type + mapper from domain errs (`ErrNotFound`→404, `ErrValidation`→422, `ErrUnauthorized`→401, `ErrForbidden`→403, `ErrConflict`→409, default 500 without leaking internal detail).
+- **FR-1.10 Health**: `GET /health` → app status, db (ping), redis (ping), version, uptime. 503 if a dependency is down.
+- **FR-1.11 Worker skeleton**: `cmd/worker` runs an Asynq server connected to Redis with 1 dummy task `system:heartbeat` registered; scheduler ready but empty.
+- **FR-1.12 Tooling**: Makefile (run, run-worker, build, migrate-up/down/create, seed, test, lint, gen-proto placeholder), `.golangci.yml`, full `.env.example`, docker-compose (postgres 16, redis 7, minio, api, worker) with healthcheck and persistent volume.
+- **FR-1.13 Graceful shutdown**: SIGINT/SIGTERM → stop accepting requests, wait for in-flight up to 10s, close DB/Redis.
 
 ### Acceptance Criteria
-- AC-1.a `docker compose up -d` → semua container healthy; `make migrate-up && make seed` sukses; `curl /health` = 200 dengan status db & redis "ok".
-- AC-1.b Matikan Redis → /health = 503; panic buatan di handler uji → 500 envelope rapi + stack di log, proses tidak mati.
-- AC-1.c `make lint` dan `make test` hijau; migrate down lalu up kembali sukses; seed dijalankan 2x tanpa error/duplikat.
-- AC-1.d Kirim 70 request/menit ke endpoint uji → sebagian ditolak 429 dengan envelope standar.
+- AC-1.a `docker compose up -d` → all containers healthy; `make migrate-up && make seed` succeeds; `curl /health` = 200 with db & redis status "ok".
+- AC-1.b Stop Redis → /health = 503; a synthetic panic in a test handler → clean 500 envelope + stack in log, process doesn't die.
+- AC-1.c `make lint` and `make test` green; migrate down then up succeeds again; seed run 2x with no error/duplicate.
+- AC-1.d Send 70 req/min to a test endpoint → some are rejected with 429 using the standard envelope.
 
 ---
 
-## FASE 2 — Auth + RBAC
+## PHASE 2 — Auth + RBAC
 
-**Tujuan:** siklus akun penuh: daftar, verifikasi email, login/refresh/logout, reset password, dan proteksi route per role.
+**Goal:** full account lifecycle: register, email verification, login/refresh/logout, password reset, and per-role route protection.
 
-**In scope:** auth user & supplier-account, JWT, OTP email (via stub notification), middleware RBAC.
-**Out of scope:** profil supplier/toko (fase 3), OAuth/social login.
+**In scope:** user & supplier-account auth, JWT, email OTP (via notification stub), RBAC middleware.
+**Out of scope:** supplier/store profile (phase 3), OAuth/social login.
 
 ### Functional Requirements
-- **FR-2.1 Register** `POST /auth/register` {name, email, password, phone, role: user|supplier}. Password min 8 char dengan angka; email unik (409 jika sudah ada); role admin TIDAK bisa didaftarkan lewat endpoint ini. Password di-hash bcrypt cost 12. Status akun `active`, `email_verified_at` null.
-- **FR-2.2 Verifikasi email**: setelah register, generate OTP 6 digit, simpan di Redis `otp:verify:{userID}` TTL 10 menit, enqueue `email:send`. `POST /auth/verify-email` {email, otp} → set email_verified_at. `POST /auth/resend-otp` rate-limited 1x/menit per email. OTP salah 5x → OTP hangus.
-- **FR-2.3 Login** `POST /auth/login` {email, password} → access token (JWT, TTL 15 mnt, claims: sub, role, jti) + refresh token (random opaque, TTL 7 hari, disimpan Redis `refresh:{token}`→userID). Email belum terverifikasi → 403 dengan kode khusus `EMAIL_NOT_VERIFIED`. Akun suspended/banned → 403. Brute force guard: 10 gagal/15 menit per email+IP → blokir sementara.
-- **FR-2.4 Refresh** `POST /auth/refresh` {refresh_token} → rotasi: token lama dihapus, terbit pasangan baru. Token tidak dikenal → 401.
-- **FR-2.5 Logout** `POST /auth/logout` (auth) → hapus refresh token + blacklist jti access token di Redis hingga expiry.
-- **FR-2.6 Reset password**: `POST /auth/forgot-password` (selalu 200 agar tidak bocorkan keberadaan email; kirim OTP jika ada) → `POST /auth/reset-password` {email, otp, new_password} → invalidasi semua refresh token user.
-- **FR-2.7 Middleware Auth**: parse Bearer JWT, tolak expired/blacklisted/invalid (401), inject claims ke context (`ctxutil.UserID(c)`, `ctxutil.Role(c)`).
-- **FR-2.8 Middleware RequireRole(roles...)**: 403 jika role tidak sesuai. Route group `/user`, `/supplier`, `/admin` terpasang dan dibuktikan dengan endpoint `GET {group}/me`.
-- **FR-2.9 Profil dasar**: `GET /user/me`, `PATCH /user/me` (name, phone), `PATCH /user/me/password` (verifikasi password lama).
-- **FR-2.10 Notification stub**: implementasi `domain/service.NotificationService` versi log-only (cetak isi email ke log) di `infra/grpcclient` — dipakai sampai service asli tersedia; ganti implementasi tanpa mengubah usecase.
+- **FR-2.1 Register** `POST /auth/register` {name, email, password, phone, role: user|supplier}. Password min 8 chars with a digit; email unique (409 if it already exists); the admin role CANNOT be registered through this endpoint. Password hashed with bcrypt cost 12. Account status `active`, `email_verified_at` null.
+- **FR-2.2 Email verification**: after register, generate a 6-digit OTP, store in Redis `otp:verify:{userID}` TTL 10 min, enqueue `email:send`. `POST /auth/verify-email` {email, otp} → sets email_verified_at. `POST /auth/resend-otp` rate-limited 1x/min per email. Wrong OTP 5x → OTP invalidated.
+- **FR-2.3 Login** `POST /auth/login` {email, password} → access token (JWT, TTL 15 min, claims: sub, role, jti) + refresh token (random opaque, TTL 7 days, stored in Redis `refresh:{token}`→userID). Unverified email → 403 with dedicated code `EMAIL_NOT_VERIFIED`. Suspended/banned account → 403. Brute force guard: 10 failures/15 min per email+IP → temporary block.
+- **FR-2.4 Refresh** `POST /auth/refresh` {refresh_token} → rotation: old token deleted, new pair issued. Unknown token → 401.
+- **FR-2.5 Logout** `POST /auth/logout` (auth) → deletes refresh token + blacklists access token jti in Redis until expiry.
+- **FR-2.6 Password reset**: `POST /auth/forgot-password` (always 200 so email existence isn't leaked; sends OTP if it exists) → `POST /auth/reset-password` {email, otp, new_password} → invalidates all of the user's refresh tokens.
+- **FR-2.7 Auth middleware**: parses Bearer JWT, rejects expired/blacklisted/invalid (401), injects claims into context (`ctxutil.UserID(c)`, `ctxutil.Role(c)`).
+- **FR-2.8 RequireRole(roles...) middleware**: 403 if the role doesn't match. Route groups `/user`, `/supplier`, `/admin` wired up and proven via a `GET {group}/me` endpoint.
+- **FR-2.9 Basic profile**: `GET /user/me`, `PATCH /user/me` (name, phone), `PATCH /user/me/password` (verifies old password).
+- **FR-2.10 Notification stub**: log-only implementation of `domain/service.NotificationService` (prints email content to the log) in `infra/grpcclient` — used until the real service is available; swap the implementation without changing the usecase.
 
 ### Acceptance Criteria
-- AC-2.a Alur happy path register→OTP (dibaca dari log stub)→verify→login→akses `/user/me`→refresh→logout→access token lama ditolak 401.
-- AC-2.b User role `user` mengakses `/supplier/me` → 403; tanpa token → 401; token expired → 401.
-- AC-2.c Refresh token yang sudah dirotasi dipakai ulang → 401. Reset password membuat semua sesi lama tidak berlaku.
-- AC-2.d Unit test usecase auth coverage kasus: email duplikat, OTP salah/expired/5x gagal, brute force lock, role admin ditolak saat register.
+- AC-2.a Happy path register→OTP (read from stub log)→verify→login→access `/user/me`→refresh→logout→old access token rejected 401.
+- AC-2.b A `user`-role user accessing `/supplier/me` → 403; no token → 401; expired token → 401.
+- AC-2.c A refresh token that's already been rotated, reused → 401. Password reset invalidates all old sessions.
+- AC-2.d Auth usecase unit test coverage for: duplicate email, wrong/expired/5x-failed OTP, brute force lock, admin role rejected on register.
 
 ---
 
-## FASE 3 — Supplier Onboarding
+## PHASE 3 — Supplier Onboarding
 
-**Tujuan:** akun supplier melengkapi profil toko, upload dokumen, dan disetujui/ditolak admin dengan jejak audit.
+**Goal:** supplier accounts complete a store profile, upload documents, and get approved/rejected by an admin with an audit trail.
 
-**In scope:** profil toko, dokumen KYC, rekening bank, media upload (MinIO/R2), approval admin, audit log, notifikasi status.
-**Out of scope:** produk (fase 4).
+**In scope:** store profile, KYC documents, bank account, media upload (MinIO/R2), admin approval, audit log, status notifications.
+**Out of scope:** products (phase 4).
 
 ### Functional Requirements
-- **FR-3.1 Media module**: `POST /media/upload` (auth; multipart) → validasi tipe (jpg/png/webp/pdf) & ukuran (gambar ≤5MB, pdf ≤10MB) → simpan ke bucket dengan key `{scope}/{uuid}.{ext}` → kembalikan url + key. Enqueue `media:process` untuk resize gambar (max 1600px) — worker mengganti file asli. Implementasi `domain/service.StorageService` berbasis S3 API (MinIO lokal, R2 produksi).
-- **FR-3.2 Profil toko**: `POST /supplier/profile` & `PUT /supplier/profile` {store_name, description, origin_city_id, pickup_address, own_fleet_enabled, fleet_coverage_km?, fleet_flat_rate?}. Slug digenerate unik dari store_name. origin_city_id wajib valid (untuk fase ini cukup integer > 0; validasi RajaOngkir menyusul fase 5). Satu user maksimal satu supplier (409).
-- **FR-3.3 Dokumen**: `POST /supplier/documents` {doc_type: nib|ktp|npwp, file_key} — maksimal 1 dokumen aktif per tipe (upload ulang menggantikan, status kembali pending). `GET /supplier/documents`.
-- **FR-3.4 Rekening bank**: CRUD `/supplier/bank-accounts`; tepat satu is_default; nomor rekening 6–20 digit.
-- **FR-3.5 Submit pengajuan**: `POST /supplier/submit` — hanya boleh jika profil lengkap + minimal dokumen KTP & NIB ada. Status supplier: `draft → pending`. Tidak bisa submit saat sudah pending/approved.
-- **FR-3.6 Review admin**: `GET /admin/suppliers?status=&q=&page=` (list + filter), `GET /admin/suppliers/:id` (detail + dokumen + presigned url), `POST /admin/suppliers/:id/approve` (set approved + verified_at), `POST /admin/suppliers/:id/reject` {reason} (wajib alasan; supplier bisa perbaiki dan submit ulang), `POST /admin/suppliers/:id/suspend` {reason}.
-- **FR-3.7 Audit log**: setiap approve/reject/suspend tercatat di audit_logs {actor_id, action, entity, metadata: {reason, before, after}, ip}. `GET /admin/audit-logs` dengan filter action & date range.
-- **FR-3.8 Notifikasi**: perubahan status supplier → notifikasi in-app (tabel notifications) + enqueue email. `GET /user/notifications` + `POST /user/notifications/:id/read` + unread count.
-- **FR-3.9 Guard**: seluruh endpoint `/supplier/*` di fase berikutnya yang bersifat berjualan wajib melewati middleware `RequireApprovedSupplier` (403 `SUPPLIER_NOT_APPROVED` jika belum approved) — middleware dibuat di fase ini.
+- **FR-3.1 Media module**: `POST /media/upload` (auth; multipart) → validates type (jpg/png/webp/pdf) & size (images ≤5MB, pdf ≤10MB) → stores to bucket with key `{scope}/{uuid}.{ext}` → returns url + key. Enqueues `media:process` to resize images (max 1600px) — the worker replaces the original file. Implementation of `domain/service.StorageService` backed by the S3 API (MinIO locally, R2 in production).
+- **FR-3.2 Store profile**: `POST /supplier/profile` & `PUT /supplier/profile` {store_name, description, origin_city_id, pickup_address, own_fleet_enabled, fleet_coverage_km?, fleet_flat_rate?}. Unique slug generated from store_name. origin_city_id required to be valid (for this phase an integer > 0 is enough; RajaOngkir validation follows in phase 5). One user can have at most one supplier (409).
+- **FR-3.3 Documents**: `POST /supplier/documents` {doc_type: nib|ktp|npwp, file_key} — max 1 active document per type (re-uploading replaces it, status resets to pending). `GET /supplier/documents`.
+- **FR-3.4 Bank account**: CRUD `/supplier/bank-accounts`; exactly one is_default; account number 6–20 digits.
+- **FR-3.5 Submit application**: `POST /supplier/submit` — only allowed if the profile is complete + at minimum KTP & NIB documents exist. Supplier status: `draft → pending`. Cannot submit while already pending/approved.
+- **FR-3.6 Admin review**: `GET /admin/suppliers?status=&q=&page=` (list + filter), `GET /admin/suppliers/:id` (detail + documents + presigned url), `POST /admin/suppliers/:id/approve` (sets approved + verified_at), `POST /admin/suppliers/:id/reject` {reason} (reason required; supplier can fix and resubmit), `POST /admin/suppliers/:id/suspend` {reason}.
+- **FR-3.7 Audit log**: every approve/reject/suspend recorded in audit_logs {actor_id, action, entity, metadata: {reason, before, after}, ip}. `GET /admin/audit-logs` with action & date-range filters.
+- **FR-3.8 Notifications**: supplier status change → in-app notification (notifications table) + enqueue email. `GET /user/notifications` + `POST /user/notifications/:id/read` + unread count.
+- **FR-3.9 Guard**: all `/supplier/*` selling-related endpoints in later phases must pass through the `RequireApprovedSupplier` middleware (403 `SUPPLIER_NOT_APPROVED` if not approved) — this middleware is built in this phase.
 
 ### Acceptance Criteria
-- AC-3.a Alur penuh: supplier lengkapi profil → upload 2 dokumen → submit → admin reject dengan alasan → supplier menerima notifikasi + alasan → perbaiki → submit ulang → approve → notifikasi diterima, verified_at terisi, audit_logs berisi 2 entri.
-- AC-3.b Upload file .exe atau 20MB → 422. File gambar besar ter-resize oleh worker (verifikasi dimensi hasil).
-- AC-3.c Submit tanpa NIB → 422 dengan daftar kekurangan. Akses endpoint berjualan (dummy) sebelum approved → 403.
-- AC-3.d Migrasi baru: suppliers, supplier_documents, supplier_bank_accounts, notifications, audit_logs — up/down bersih.
+- AC-3.a Full flow: supplier completes profile → uploads 2 documents → submits → admin rejects with a reason → supplier receives notification + reason → fixes it → resubmits → approved → notification received, verified_at set, audit_logs has 2 entries.
+- AC-3.b Uploading a .exe or a 20MB file → 422. Large images get resized by the worker (verify output dimensions).
+- AC-3.c Submit without NIB → 422 with a list of what's missing. Accessing a (dummy) selling endpoint before approval → 403.
+- AC-3.d New migrations: suppliers, supplier_documents, supplier_bank_accounts, notifications, audit_logs — up/down clean.
 
 ---
 
-## FASE 4 — Katalog
+## PHASE 4 — Catalog
 
-**Tujuan:** supplier approved mengelola produk lengkap; publik dapat mencari dan menelusuri katalog dengan cepat.
+**Goal:** approved suppliers manage a full product catalog; the public can search and browse quickly.
 
-**In scope:** kategori, produk+varian+gambar, stok & movements, listing publik + full-text search, cache.
-**Out of scope:** cart/checkout (fase 5), review (fase 6).
+**In scope:** category, product+variant+image, stock & movements, public listing + full-text search, cache.
+**Out of scope:** cart/checkout (phase 5), review (phase 6).
 
 ### Functional Requirements
-- **FR-4.1 Kategori (admin)**: CRUD `/admin/categories` hierarkis (parent_id, max 3 level), slug unik, is_active, sort_order. Hapus hanya jika tanpa anak & tanpa produk (409). Publik: `GET /categories` (tree, cache Redis 10 menit, invalidate saat mutasi). Seed ±20 kategori bahan bangunan realistis (Semen & Agregat, Besi & Baja, Kayu, Cat, Keramik & Granit, Sanitasi, Atap, Listrik, Pipa, dst).
-- **FR-4.2 Produk (supplier, approved-only)**: CRUD `/supplier/products`. Field: category_id, name, description, specs (jsonb bebas: merk, material, dimensi), status draft|active|inactive. Publish (draft→active) hanya jika ≥1 varian aktif dan ≥1 gambar. Slug unik global.
-- **FR-4.3 Varian**: CRUD nested `/supplier/products/:id/variants`. Field wajib: name, sku (unik per supplier), unit (enum: sak|batang|m3|dus|pcs|lembar|kg|roll|set), price>0, **weight_gram>0**, dimensi cm (boleh 0 untuk non-volumetrik), min_order_qty≥1, stock≥0. Update harga tidak mengubah order lama (snapshot — ditegakkan fase 5).
-- **FR-4.4 Gambar**: attach dari media upload, max 8 per produk, tepat satu is_primary, sortable.
-- **FR-4.5 Stok**: `POST /supplier/variants/:id/stock-adjustment` {qty(+/-), note} → tulis stock_movements (type in/out/adjustment, stock_after) dalam transaksi bersama update stok; stok tidak boleh negatif (409). `GET /supplier/variants/:id/movements` (riwayat, paginated).
-- **FR-4.6 Katalog publik**: `GET /products?q=&category=&min_price=&max_price=&city=&sort=(newest|price_asc|price_desc|rating)&cursor=` — hanya produk active dari supplier approved. q memakai tsvector (name+description+specs merk) websearch_to_tsquery, ranking ts_rank. Response ringkas: id, slug, name, primary_image, price_min–max, unit, supplier{name, city}, rating. Pagination cursor-based.
-- **FR-4.7 Detail publik**: `GET /products/:slug` → lengkap varian aktif + stok tersedia (stok − reservasi aktif; sebelum fase 5, reservasi=0), gambar, specs, profil singkat supplier. Cache Redis 60 dtk, invalidate saat supplier mengubah produk.
-- **FR-4.8 search_vector** dijaga trigger PostgreSQL (INSERT/UPDATE), index GIN. EXPLAIN memakai index.
-- **FR-4.9 Toko publik**: `GET /suppliers/:slug` → profil + produknya (paginated).
-- **FR-4.10 Low-stock job**: scheduler harian `notification:lowstock` — varian stok < ambang (default 5, per supplier configurable nanti; hardcode default dulu) → notifikasi supplier, maksimal 1x/hari/varian.
+- **FR-4.1 Category (admin)**: hierarchical CRUD `/admin/categories` (parent_id, max 3 levels), unique slug, is_active, sort_order. Delete only if it has no children & no products (409). Public: `GET /categories` (tree, Redis cache 10 min, invalidated on mutation). Seed ~20 realistic building-material categories (Cement & Aggregate, Steel & Iron, Wood, Paint, Tile & Granite, Sanitary, Roofing, Electrical, Pipe, etc.).
+- **FR-4.2 Product (supplier, approved-only)**: CRUD `/supplier/products`. Fields: category_id, name, description, specs (free-form jsonb: brand, material, dimensions), status draft|active|inactive. Publish (draft→active) only if ≥1 active variant and ≥1 image. Globally unique slug.
+- **FR-4.3 Variant**: nested CRUD `/supplier/products/:id/variants`. Required fields: name, sku (unique per supplier), unit (enum: sak|batang|m3|dus|pcs|lembar|kg|roll|set), price>0, **weight_gram>0**, dimensions in cm (may be 0 for non-volumetric), min_order_qty≥1, stock≥0. Price updates don't change existing orders (snapshot — enforced in phase 5).
+- **FR-4.4 Images**: attached from media upload, max 8 per product, exactly one is_primary, sortable.
+- **FR-4.5 Stock**: `POST /supplier/variants/:id/stock-adjustment` {qty(+/-), note} → writes stock_movements (type in/out/adjustment, stock_after) in a transaction together with the stock update; stock can't go negative (409). `GET /supplier/variants/:id/movements` (paginated history).
+- **FR-4.6 Public catalog**: `GET /products?q=&category=&min_price=&max_price=&city=&sort=(newest|price_asc|price_desc|rating)&cursor=` — only active products from approved suppliers. q uses tsvector (name+description+specs brand) websearch_to_tsquery, ranked with ts_rank. Compact response: id, slug, name, primary_image, price_min–max, unit, supplier{name, city}, rating. Cursor-based pagination.
+- **FR-4.7 Public detail**: `GET /products/:slug` → full active variants + available stock (stock − active reservations; 0 before phase 5), images, specs, brief supplier profile. Redis cache 60s, invalidated when the supplier edits the product.
+- **FR-4.8 search_vector** kept in sync by a PostgreSQL trigger (INSERT/UPDATE), GIN index. EXPLAIN uses the index.
+- **FR-4.9 Public store**: `GET /suppliers/:slug` → profile + its products (paginated).
+- **FR-4.10 Low-stock job**: daily `notification:lowstock` scheduler — variant stock < threshold (default 5, per-supplier configurable later; hardcoded default for now) → notify supplier, max 1x/day/variant.
 
 ### Acceptance Criteria
-- AC-4.a Supplier membuat produk "Semen Portland 40kg" 2 varian + 3 gambar → publish → muncul di `GET /products?q=semen` dan pencarian "portland 40" juga menemukannya.
-- AC-4.b Publish tanpa gambar → 422. Varian tanpa weight_gram → 422. SKU duplikat dalam satu supplier → 409.
-- AC-4.c Adjustment −10 pada stok 5 → 409; +10 lalu −3 → movements 2 baris dengan stock_after benar.
-- AC-4.d Produk supplier suspended tidak muncul di katalog publik. Cache: ubah nama produk → detail publik berubah ≤ invalidasi (bukan menunggu 60 dtk).
-- AC-4.e Integration test repository search dengan testcontainers: seeding 50 produk, query q+filter+sort mengembalikan hasil dan urutan benar.
+- AC-4.a Supplier creates product "Portland Cement 40kg" with 2 variants + 3 images → publishes → shows up in `GET /products?q=semen` and searching "portland 40" also finds it.
+- AC-4.b Publish without an image → 422. Variant without weight_gram → 422. Duplicate SKU within one supplier → 409.
+- AC-4.c Adjustment of −10 on stock of 5 → 409; +10 then −3 → 2 movement rows with correct stock_after.
+- AC-4.d Suspended supplier's products don't show up in the public catalog. Cache: renaming a product → public detail updates ≤ invalidation window (not waiting for the 60s TTL).
+- AC-4.e Repository search integration test with testcontainers: seed 50 products, query q+filter+sort returns correct results and ordering.
 
 ---
 
-## FASE 5 — Transaksi Inti
+## PHASE 5 — Core Transactions
 
-**Tujuan:** alur uang dan barang end-to-end: cart → checkout (ongkir) → bayar via payment-service (Xendit) → order berjalan di state machine → dikirim → diterima.
+**Goal:** end-to-end money and goods flow: cart → checkout (shipping) → pay via payment-service (Xendit) → order runs through a state machine → shipped → received.
 
-**In scope:** cart, checkout preview/confirm, RajaOngkir client, stock reservation + Redis lock, payment-service gRPC (dibangun sungguhan), webhook, order lifecycle, shipment, job expire.
-**Out of scope:** review, payout (fase 6).
+**In scope:** cart, checkout preview/confirm, RajaOngkir client, stock reservation + Redis lock, payment-service gRPC (built for real), webhook, order lifecycle, shipment, expire job.
+**Out of scope:** review, payout (phase 6).
 
 ### Functional Requirements
-- **FR-5.1 Cart**: `GET /user/cart`, `POST /user/cart/items` {variant_id, qty}, `PATCH .../items/:id`, `DELETE .../items/:id`. Merge qty untuk varian sama. Response digrup per supplier, tiap item membawa flag masalah: out_of_stock, below_min_order, price_changed(sejak ditambahkan), product_inactive. Item bermasalah tidak menghalangi melihat cart tetapi menghalangi checkout.
-- **FR-5.2 RajaOngkir client** (`infra/rajaongkir`): implementasi `domain/service.ShippingGateway` — GetCost(originCityID, destCityID, weightGram, couriers[]) dan (fase ini stub) TrackWaybill. Timeout 5 dtk, retry 1x, error → `ErrShippingUnavailable`. Konfigurasi API key via env; sediakan mock mode (`RAJAONGKIR_MOCK=true`) yang mengembalikan tarif deterministik untuk dev/test.
-- **FR-5.3 Checkout preview** `POST /user/checkout/preview` {address_id, items[]}: validasi semua item (stok, min order, aktif, supplier approved) → grup per supplier → per grup hitung chargeable weight = Σ max(weight, volumetrik p·l·t/6000) → panggil ongkir paralel per grup → kembalikan: grup[{supplier, items, subtotal, shipping_options[kurir/service/etd/cost + opsi armada supplier bila enabled & jarak dalam coverage]}], grand_total_estimate. Alamat harus milik user.
-- **FR-5.4 Checkout confirm** `POST /user/checkout/confirm` {address_id, items[], shipping_choice per grup}: urutan atomik — (1) Redis lock `stock:{variantID}` (SETNX+TTL 10 dtk, sorted by ID untuk hindari deadlock), (2) TX DB: validasi ulang harga & stok efektif (stok − reservasi aktif), insert checkout_group, orders per supplier (order_number format `ORD-YYYYMMDD-XXXXX`, commission_amount = 4% subtotal, snapshot alamat jsonb), order_items snapshot, stock_reservations (expires_at = now+2 jam), order_status_histories awal, (3) commit, release lock, (4) panggil payment-service CreateInvoice(amount=grand total, external_id=group_number) → simpan payments, (5) response invoice_url. Kegagalan langkah 4 → tandai group `payment_failed` dan release reservasi (kompensasi), 502 ke user.
-- **FR-5.5 Payment-service (repo/folder terpisah `services/payment`)**: gRPC server Go mandiri. RPC: CreateInvoice, GetInvoice, (CreateDisbursement disiapkan untuk fase 6). Integrasi Xendit Invoice API; terima webhook Xendit di endpoint HTTP-nya sendiri dengan verifikasi callback token; meneruskan event ke monolith via RPC `PaymentEventCallback` (monolith mengekspos gRPC server kecil ATAU payment-service memanggil webhook HTTP monolith `POST /internal/payments/callback` yang diamankan shared secret — pilih HTTP callback, lebih sederhana; keputusan final: HTTP callback + header `X-Internal-Secret`). Sediakan mock mode penuh tanpa Xendit untuk dev.
-- **FR-5.6 Callback paid** (idempotent, kunci: xendit_invoice_id + status): payments.paid → TX: checkout_group paid, semua orders paid + history, konversi reservasi → stock_movements(out) + kurangi stok, enqueue email & notifikasi ke pembeli dan tiap supplier. Callback duplikat tidak menggandakan efek.
-- **FR-5.7 Job order:expire**: scheduler tiap menit — checkout_group pending melewati payments.expires_at → group expired, orders expired + history(actor system), release reservasi, notifikasi pembeli. Race dengan pembayaran: transisi divalidasi state machine (paid tidak bisa menjadi expired).
-- **FR-5.8 State machine order** (usecase order, tabel transisi eksplisit): pending_payment→{paid, expired, cancelled(user)}; paid→{processed(supplier), cancelled(user|supplier → trigger refund via payment-service + kembalikan stok)}; processed→shipped(supplier); shipped→delivered(supplier utk armada | job tracking utk kurir — fase ini: endpoint supplier menandai delivered); delivered→completed(user confirm | job autocomplete 3 hari). Transisi ilegal → 409 `INVALID_STATUS_TRANSITION`. Setiap transisi 1 baris history.
-- **FR-5.9 Shipment**: `POST /supplier/orders/:id/ship` {method, courier_code?, tracking_number?} — kurir wajib resi; armada wajib supplier own_fleet_enabled. `GET /user/orders/:id` menampilkan shipment & timeline history.
-- **FR-5.10 Listing order**: user `GET /user/orders?status=`, supplier `GET /supplier/orders?status=`, admin `GET /admin/orders` (+filter supplier/user/tanggal, dan `POST /admin/orders/:id/force-status` dengan audit log untuk intervensi).
-- **FR-5.11 Job order:autocomplete**: delivered > 3 hari → completed (actor system). (Efek saldo supplier menyusul fase 6 — desain event: fungsi `onOrderCompleted` dipanggil dari satu titik.)
+- **FR-5.1 Cart**: `GET /user/cart`, `POST /user/cart/items` {variant_id, qty}, `PATCH .../items/:id`, `DELETE .../items/:id`. Qty merges for the same variant. Response grouped per supplier, each item carries issue flags: out_of_stock, below_min_order, price_changed (since added), product_inactive. A problem item doesn't block viewing the cart but does block checkout.
+- **FR-5.2 RajaOngkir client** (`infra/rajaongkir`): implementation of `domain/service.ShippingGateway` — GetCost(originCityID, destCityID, weightGram, couriers[]) and (stub for this phase) TrackWaybill. 5s timeout, 1 retry, error → `ErrShippingUnavailable`. API key configured via env; provide a mock mode (`RAJAONGKIR_MOCK=true`) returning deterministic rates for dev/test.
+- **FR-5.3 Checkout preview** `POST /user/checkout/preview` {address_id, items[]}: validate every item (stock, min order, active, supplier approved) → group per supplier → per group compute chargeable weight = Σ max(weight, volumetric l·w·h/6000) → call shipping in parallel per group → return: groups[{supplier, items, subtotal, shipping_options[courier/service/etd/cost + supplier-fleet option if enabled & distance within coverage]}], grand_total_estimate. Address must belong to the user.
+- **FR-5.4 Checkout confirm** `POST /user/checkout/confirm` {address_id, items[], shipping_choice per group}: atomic sequence — (1) Redis lock `stock:{variantID}` (SETNX+TTL 10s, sorted by ID to avoid deadlock), (2) DB TX: re-validate price & effective stock (stock − active reservations), insert checkout_group, orders per supplier (order_number format `ORD-YYYYMMDD-XXXXX`, commission_amount = 4% of subtotal, jsonb address snapshot), snapshot order_items, stock_reservations (expires_at = now+2h), initial order_status_histories, (3) commit, release lock, (4) call payment-service CreateInvoice(amount=grand total, external_id=group_number) → store payments, (5) response invoice_url. Failure at step 4 → mark the group `payment_failed` and release the reservation (compensation), 502 to the user.
+- **FR-5.5 Payment-service (separate repo/folder `services/payment`)**: standalone Go gRPC server. RPCs: CreateInvoice, GetInvoice, (CreateDisbursement prepared for phase 6). Integrates the Xendit Invoice API; receives Xendit webhooks on its own HTTP endpoint with callback token verification; forwards events to the monolith via RPC `PaymentEventCallback` (either the monolith exposes a small gRPC server OR payment-service calls the monolith's HTTP webhook `POST /internal/payments/callback` secured with a shared secret — chosen: HTTP callback, simpler; final decision: HTTP callback + `X-Internal-Secret` header). Provide a full mock mode without Xendit for dev.
+- **FR-5.6 Paid callback** (idempotent, key: xendit_invoice_id + status): payments.paid → TX: checkout_group paid, all orders paid + history, reservations converted → stock_movements(out) + stock decremented, enqueue email & notification to buyer and each supplier. Duplicate callback doesn't duplicate effects.
+- **FR-5.7 order:expire job**: scheduler every minute — pending checkout_group past payments.expires_at → group expired, orders expired + history(actor system), release reservation, notify buyer. Race with payment: transition validated by the state machine (paid can't become expired).
+- **FR-5.8 Order state machine** (order usecase, explicit transition table): pending_payment→{paid, expired, cancelled(user)}; paid→{processed(supplier), cancelled(user|supplier → triggers refund via payment-service + restores stock)}; processed→shipped(supplier); shipped→delivered(supplier for own fleet | tracking job for courier — this phase: supplier endpoint marks delivered); delivered→completed(user confirms | autocomplete job after 3 days). Illegal transition → 409 `INVALID_STATUS_TRANSITION`. Every transition writes 1 history row.
+- **FR-5.9 Shipment**: `POST /supplier/orders/:id/ship` {method, courier_code?, tracking_number?} — courier requires a tracking number; fleet requires supplier own_fleet_enabled. `GET /user/orders/:id` shows shipment & history timeline.
+- **FR-5.10 Order listing**: user `GET /user/orders?status=`, supplier `GET /supplier/orders?status=`, admin `GET /admin/orders` (+filter by supplier/user/date, and `POST /admin/orders/:id/force-status` with audit log for manual intervention).
+- **FR-5.11 order:autocomplete job**: delivered > 3 days → completed (actor system). (Supplier balance effect follows in phase 6 — design: an `onOrderCompleted` function called from a single call site.)
 
 ### Acceptance Criteria
-- AC-5.a E2E (mock RajaOngkir + mock payment): 2 supplier dalam 1 cart → preview menampilkan 2 grup ongkir → confirm → 2 orders + 1 invoice → callback paid → stok berkurang benar, reservasi converted, notifikasi terkirim → supplier A ship (kurir), supplier B ship (armada) → delivered → user confirm completed di A; B completed via job (uji dengan memundurkan delivered_at).
-- AC-5.b Dua request confirm bersamaan memperebutkan stok terakhir (test paralel) → tepat satu berhasil, satu 409, tanpa stok negatif.
-- AC-5.c Tidak dibayar → job expire: reservasi released, stok efektif pulih, order expired. Callback paid dikirim 2x → efek tunggal.
-- AC-5.d Cancel saat paid → refund dipanggil (mock tercatat), stok kembali, history lengkap. Transisi ilegal (pending→shipped) → 409.
-- AC-5.e Payment-service berjalan sebagai proses terpisah di docker-compose; monolith tetap start (degraded, checkout 502) bila service mati — bukan crash.
+- AC-5.a E2E (mock RajaOngkir + mock payment): 2 suppliers in 1 cart → preview shows 2 shipping groups → confirm → 2 orders + 1 invoice → paid callback → stock decremented correctly, reservations converted, notifications sent → supplier A ships (courier), supplier B ships (fleet) → delivered → user confirms A completed; B completed via job (tested by backdating delivered_at).
+- AC-5.b Two concurrent confirm requests racing for the last unit of stock (parallel test) → exactly one succeeds, one gets 409, no negative stock.
+- AC-5.c Unpaid → expire job: reservation released, effective stock restored, order expired. Paid callback sent 2x → single effect.
+- AC-5.d Cancel while paid → refund called (mock recorded), stock restored, full history. Illegal transition (pending→shipped) → 409.
+- AC-5.e Payment-service runs as a separate process in docker-compose; the monolith still starts (degraded, checkout 502) if the service is down — not a crash.
 
 ---
 
-## FASE 6 — Pasca-transaksi
+## PHASE 6 — Post-Transaction
 
-**Tujuan:** kepercayaan & perputaran uang: review produk, notifikasi lengkap, dan payout supplier ber-ledger auditabel.
+**Goal:** trust & money flow: product reviews, full notifications, and auditable ledger-backed supplier payouts.
 
 ### Functional Requirements
-- **FR-6.1 Settlement on complete**: `onOrderCompleted` → TX: ledger credit_order (subtotal + ongkir jika armada sendiri) dan debit_commission (4% subtotal), keduanya dengan balance_after; update supplier_balances (pending→available sesuai desain: sederhanakan — saldo masuk langsung available saat completed). Idempotent per order (unique constraint ref).
-- **FR-6.2 Ledger**: append-only (tanpa endpoint update/delete; DB: revoke UPDATE/DELETE atau trigger blokir). `GET /supplier/ledger?type=&from=&to=` paginated + saldo berjalan. Konsistensi: Σ ledger = balance (dibuktikan test).
-- **FR-6.3 Withdraw**: `POST /supplier/withdraws` {amount, bank_account_id} — amount ≥ Rp50.000, ≤ available; TX: hold (available−, pending_withdraw baris ledger TIDAK ditulis dulu — hold cukup di balances + status request). `GET /supplier/withdraws`. Batal oleh supplier hanya saat status requested.
-- **FR-6.4 Approval & disbursement**: `POST /admin/withdraws/:id/approve` → panggil payment-service CreateDisbursement → status processing; callback disbursement completed → status disbursed + ledger debit_withdraw + lepaskan hold; failed → kembalikan hold, status failed + notifikasi. `POST /admin/withdraws/:id/reject` {reason} → kembalikan hold. Semua aksi admin → audit log.
-- **FR-6.5 Review**: `POST /user/orders/:orderId/items/:itemId/review` {rating 1–5, comment?, image_keys[] ≤3} — hanya pemilik order berstatus completed, satu review per order_item (409). Balasan supplier: `POST /supplier/reviews/:id/reply` sekali. Agregat rating_avg & rating_count produk diupdate transaksional. Publik: `GET /products/:slug/reviews?rating=&cursor=`.
-- **FR-6.6 Notifikasi lengkap**: pastikan semua event mengirim in-app + email: order paid/shipped/delivered/completed/cancelled/expired (pembeli & supplier sesuai konteks), review baru (supplier), balasan review (pembeli), withdraw lifecycle (supplier), low stock. Email via notification-service asli (`services/notification`, gRPC, template Mailjet, mock mode) menggantikan stub fase 2 — tanpa mengubah usecase.
-- **FR-6.7 Preferensi ringan**: `PATCH /user/me/notification-settings` {email_marketing: bool} — email transaksional selalu terkirim.
+- **FR-6.1 Settlement on complete**: `onOrderCompleted` → TX: ledger credit_order (subtotal + shipping if own fleet) and debit_commission (4% of subtotal), both with balance_after; update supplier_balances (pending→available per design: simplified — balance goes straight to available on completion). Idempotent per order (unique constraint on ref).
+- **FR-6.2 Ledger**: append-only (no update/delete endpoint; DB: revoke UPDATE/DELETE or a blocking trigger). `GET /supplier/ledger?type=&from=&to=` paginated + running balance. Consistency: Σ ledger = balance (proven by test).
+- **FR-6.3 Withdraw**: `POST /supplier/withdraws` {amount, bank_account_id} — amount ≥ Rp50,000, ≤ available; TX: hold (available−, pending_withdraw ledger row NOT written yet — hold is enough on balances + request status). `GET /supplier/withdraws`. Cancelable by the supplier only while status is requested.
+- **FR-6.4 Approval & disbursement**: `POST /admin/withdraws/:id/approve` → calls payment-service CreateDisbursement → status processing; disbursement-completed callback → status disbursed + ledger debit_withdraw + release hold; failed → restore hold, status failed + notification. `POST /admin/withdraws/:id/reject` {reason} → restores hold. All admin actions → audit log.
+- **FR-6.5 Review**: `POST /user/orders/:orderId/items/:itemId/review` {rating 1–5, comment?, image_keys[] ≤3} — only the order owner, status completed, one review per order_item (409). Supplier reply: `POST /supplier/reviews/:id/reply` once. Product rating_avg & rating_count aggregate updated transactionally. Public: `GET /products/:slug/reviews?rating=&cursor=`.
+- **FR-6.6 Full notifications**: ensure every event sends in-app + email: order paid/shipped/delivered/completed/cancelled/expired (buyer & supplier per context), new review (supplier), review reply (buyer), withdraw lifecycle (supplier), low stock. Email via the real notification-service (`services/notification`, gRPC, Mailjet templates, mock mode) replacing the phase-2 stub — without changing the usecase.
+- **FR-6.7 Lightweight preferences**: `PATCH /user/me/notification-settings` {email_marketing: bool} — transactional emails always sent.
 
 ### Acceptance Criteria
-- AC-6.a Order Rp2.000.000 (ongkir kurir) completed → ledger: credit 2.000.000, debit 80.000; available = 1.920.000. Order kedua dengan armada sendiri → ongkir ikut dikredit. Jalankan `onOrderCompleted` 2x → efek tunggal.
-- AC-6.b Withdraw 1.000.000 → available turun seketika; reject → kembali; approve+disbursement sukses (mock) → ledger debit_withdraw, Σ ledger = balance. Percobaan UPDATE baris ledger via SQL → ditolak DB.
-- AC-6.c Review pada order belum completed → 403; review kedua item sama → 409; rating produk terhitung benar setelah 3 review (avg & count).
-- AC-6.d Notification-service asli berjalan di compose; matikan → aksi tetap sukses, email masuk retry Asynq (bukan gagal transaksi).
+- AC-6.a Rp2,000,000 order (courier shipping) completed → ledger: credit 2,000,000, debit 80,000; available = 1,920,000. A second order with own fleet also credits shipping. Running `onOrderCompleted` 2x → single effect.
+- AC-6.b Withdraw 1,000,000 → available drops immediately; reject → restored; approve+disbursement succeeds (mock) → ledger debit_withdraw, Σ ledger = balance. Attempting UPDATE on a ledger row via SQL → rejected by the DB.
+- AC-6.c Review on a not-yet-completed order → 403; second review on the same item → 409; product rating computed correctly after 3 reviews (avg & count).
+- AC-6.d Real notification-service running in compose; stop it → actions still succeed, email goes into Asynq retry (not a failed transaction).
 
 ---
 
-## FASE 7 — Pelengkap & Hardening
+## PHASE 7 — Complementary & Hardening
 
-**Tujuan:** fitur pendukung, laporan, dan kesiapan produksi.
+**Goal:** supporting features, reporting, and production readiness.
 
 ### Functional Requirements
-- **FR-7.1 Wishlist**: `GET/POST/DELETE /user/wishlists` (toggle per product), flag is_wishlisted di detail produk saat login.
-- **FR-7.2 Banner**: CRUD `/admin/banners` (media, link, jadwal starts/ends, sort) + `GET /banners` publik (aktif & dalam jadwal, cache 5 menit).
-- **FR-7.3 Report supplier**: `GET /supplier/reports/summary?from=&to=` {gmv, orders_count, aov, top_products[5], sales_per_day[]} dan `GET /supplier/reports/export` → enqueue `report:generate` → CSV ke storage → notifikasi tautan unduh (presigned, 24 jam).
-- **FR-7.4 Report admin**: `GET /admin/reports/summary` {gmv, komisi, orders per status, supplier aktif, user baru, per-day series} + export CSV serupa.
-- **FR-7.5 Hardening keamanan**: helmet-equivalent headers, batas body 2MB (kecuali upload), validasi UUID param terpusat, audit dependensi (`govulncheck`), rate limit khusus auth (5/menit), lockdown endpoint internal callback (secret + allowlist IP opsional).
-- **FR-7.6 Observabilitas**: endpoint `/metrics` Prometheus (http duration/status, asynq queue depth via exporter), dashboard Grafana JSON di `deploy/`, log sampling untuk 4xx.
-- **FR-7.7 Kualitas**: coverage usecase ≥70%; suite integration test E2E fase 5–6 dijalankan di CI (GitHub Actions: lint, test, build image); seed demo lengkap (`make seed-demo`: 3 supplier approved, 30 produk, 1 order tiap status) untuk demo investor.
-- **FR-7.8 Dokumentasi**: `docs/openapi.yaml` sinkron seluruh endpoint publik/user/supplier/admin; README menjalankan project < 10 menit dari clone; PROGRESS.md final.
+- **FR-7.1 Wishlist**: `GET/POST/DELETE /user/wishlists` (toggle per product), is_wishlisted flag on product detail when logged in.
+- **FR-7.2 Banner**: CRUD `/admin/banners` (media, link, starts/ends schedule, sort) + public `GET /banners` (active & within schedule, cache 5 min).
+- **FR-7.3 Supplier report**: `GET /supplier/reports/summary?from=&to=` {gmv, orders_count, aov, top_products[5], sales_per_day[]} and `GET /supplier/reports/export` → enqueue `report:generate` → CSV to storage → notification with download link (presigned, 24h).
+- **FR-7.4 Admin report**: `GET /admin/reports/summary` {gmv, commission, orders per status, active suppliers, new users, per-day series} + similar CSV export.
+- **FR-7.5 Security hardening**: helmet-equivalent headers, 2MB body limit (except upload), centralized UUID param validation, dependency audit (`govulncheck`), auth-specific rate limit (5/min), lockdown of the internal callback endpoint (secret + optional IP allowlist).
+- **FR-7.6 Observability**: `/metrics` Prometheus endpoint (http duration/status, asynq queue depth via exporter), Grafana dashboard JSON in `deploy/`, log sampling for 4xx.
+- **FR-7.7 Quality**: usecase coverage ≥70%; phase 5–6 E2E integration test suite run in CI (GitHub Actions: lint, test, build image); full demo seed (`make seed-demo`: 3 approved suppliers, 30 products, 1 order per status) for investor demos.
+- **FR-7.8 Documentation**: `docs/openapi.yaml` in sync with all public/user/supplier/admin endpoints; README gets the project running in < 10 minutes from clone; final PROGRESS.md.
 
 ### Acceptance Criteria
-- AC-7.a CI hijau end-to-end pada PR. `make seed-demo` + login 3 role → seluruh alur demo bisa diperagakan tanpa menyentuh DB manual.
-- AC-7.b `/metrics` menampilkan histogram request; Grafana dashboard menampilkan RPS & p95 saat load test ringan (k6/hey 100 VU, 1 menit) tanpa error 5xx dan p95 < 300ms untuk katalog (mock eksternal).
-- AC-7.c govulncheck bersih atau seluruh temuan tercatat dengan mitigasi; endpoint callback internal tanpa secret → 401.
-- AC-7.d OpenAPI valid (lint) dan mencakup 100% route yang terdaftar (dibuktikan script pembanding route vs spec).
+- AC-7.a CI green end-to-end on the PR. `make seed-demo` + login as 3 roles → the entire demo flow can be walked through without touching the DB manually.
+- AC-7.b `/metrics` shows a request histogram; Grafana dashboard shows RPS & p95 during a light load test (k6/hey 100 VU, 1 min) with no 5xx errors and p95 < 300ms for the catalog (external mocked).
+- AC-7.c govulncheck clean or every finding documented with a mitigation; internal callback endpoint without secret → 401.
+- AC-7.d OpenAPI valid (lint) and covers 100% of registered routes (proven by a route-vs-spec comparison script).
 
 ---
 
-## Non-Functional Requirements (berlaku semua fase)
+## Non-Functional Requirements (apply to all phases)
 
-- **NFR-1** Semua timestamp `timestamptz` UTC; presentasi timezone urusan client.
-- **NFR-2** Uang: `numeric(15,2)` di DB, integer rupiah di API (tanpa float di kalkulasi — gunakan int64 sen ATAU rupiah bulat; keputusan: rupiah bulat int64, tanpa sen).
-- **NFR-3** Idempotensi wajib untuk: callback payment, callback disbursement, settlement, job yang bisa retry.
-- **NFR-4** Query list apa pun wajib paginated (default 20, max 100) — tidak ada SELECT tanpa batas.
-- **NFR-5** N+1 dilarang pada endpoint list (buktikan dengan log query saat review).
-- **NFR-6** Secret hanya via env; log tidak boleh memuat password/OTP/token/no. rekening penuh (mask).
-- **NFR-7** Semua external call (Xendit, RajaOngkir, Mailjet, storage) punya timeout eksplisit dan error terpetakan — kegagalan eksternal tidak boleh membuat data internal inkonsisten (gunakan kompensasi/outbox sederhana bila perlu).
+- **NFR-1** All timestamps `timestamptz` UTC; timezone presentation is the client's concern.
+- **NFR-2** Money: `numeric(15,2)` in the DB, integer rupiah in the API (no floats in calculations — use int64 cents OR whole rupiah; decision: whole rupiah int64, no cents).
+- **NFR-3** Idempotency required for: payment callback, disbursement callback, settlement, any retryable job.
+- **NFR-4** Any list query must be paginated (default 20, max 100) — no unbounded SELECT.
+- **NFR-5** N+1 forbidden on list endpoints (prove with query logs during review).
+- **NFR-6** Secrets only via env; logs must not contain password/OTP/token/full account number (mask).
+- **NFR-7** Every external call (Xendit, RajaOngkir, Mailjet, storage) has an explicit timeout and mapped errors — external failure must not leave internal data inconsistent (use compensation/a simple outbox where needed).
 
-## Definition of Done per Fase
+## Definition of Done per Phase
 
-1. Seluruh FR terimplementasi dan seluruh AC lolos (otomatis bila memungkinkan, manual didokumentasikan di PROGRESS.md).
-2. `make lint && make test` hijau; migrasi up/down bersih dari database kosong.
-3. Tidak ada TODO/panic placeholder di jalur produksi.
-4. PROGRESS.md diperbarui: checklist FR & AC fase tercentang + catatan keputusan yang diambil bila ada ambiguitas.
+1. All FRs implemented and all ACs pass (automated where possible, manual documented in PROGRESS.md).
+2. `make lint && make test` green; migrations up/down clean from an empty database.
+3. No TODO/panic placeholder on the production path.
+4. PROGRESS.md updated: phase FR & AC checklist checked off + decision notes recorded for any ambiguity.

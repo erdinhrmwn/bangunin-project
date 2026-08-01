@@ -1,70 +1,70 @@
-# Struktur Project — Marketplace Bahan Bangunan
+# Project Structure — Building Materials Marketplace
 **Stack:** Golang (Fiber v3) · PostgreSQL · Redis · Asynq · gRPC (Payment/Xendit, Notification/Mailjet) · RajaOngkir
 
 ---
 
-## 1. Daftar Module Lengkap
+## 1. Full Module List
 
 ### Core Modules (Monolith)
 
-| # | Module | Deskripsi | Role Utama |
+| # | Module | Description | Primary Role |
 |---|--------|-----------|------------|
-| 1 | **Auth** | Register, login, refresh token (JWT), verifikasi email (OTP), reset password, logout (blacklist token di Redis) | Semua |
-| 2 | **User** | Profil, ganti password, manajemen alamat (multi-address, alamat proyek/gudang), upload avatar | User |
-| 3 | **Supplier** | Registrasi toko, pengajuan verifikasi (upload dokumen: NIB/KTP), profil toko, rekening bank untuk payout, jam operasional, lokasi origin pengiriman | Supplier |
-| 4 | **Admin** | Approval supplier, manajemen kategori, manajemen user (ban/suspend), setting komisi platform, moderasi produk & review | Admin |
-| 5 | **Category** | Kategori hierarkis (parent-child): Semen & Agregat → Semen Portland, Pasir, dst. Slug untuk SEO | Admin (kelola), publik (baca) |
-| 6 | **Product** | CRUD produk, varian (ukuran/satuan: sak, batang, m³, dus), multi-gambar, spesifikasi teknis (JSON: merk, dimensi, berat), berat & volume per unit (krusial untuk ongkir), min. order quantity, status draft/aktif/nonaktif | Supplier |
-| 7 | **Inventory** | Manajemen stok per varian, stock reservation saat checkout (Redis lock + DB), riwayat pergerakan stok, notifikasi stok menipis | Supplier |
-| 8 | **Search & Catalog** | Full-text search (PostgreSQL `tsvector` + GIN index), filter (kategori, harga, lokasi supplier, rating, merk), sorting, pagination cursor-based | Publik |
-| 9 | **Cart** | Keranjang per user (persist di DB, cache di Redis), grouping item per supplier, validasi stok & min. order saat load | User |
-| 10 | **Checkout** | Ringkasan order, split order otomatis per supplier, kalkulasi ongkir (RajaOngkir: berat + volumetrik), pemilihan kurir, validasi ulang harga & stok, pembuatan order + reservasi stok (transaksional) | User |
-| 11 | **Order** | State machine status order (pending_payment → paid → processed → shipped → delivered → completed / cancelled / refunded), riwayat status, pembatalan, konfirmasi penerimaan, auto-complete setelah N hari | User, Supplier, Admin |
-| 12 | **Shipping** | Integrasi RajaOngkir (cost & waybill tracking), input resi oleh supplier, opsi **pengiriman armada supplier sendiri** (flat rate/per km — umum untuk material berat seperti pasir & besi), zona jangkauan pengiriman supplier | Supplier |
-| 13 | **Review & Rating** | Review per produk (hanya pembeli yang order-nya completed), rating agregat di produk & toko, balasan supplier, foto review | User |
-| 14 | **Wishlist** | Simpan produk favorit | User |
-| 15 | **Payout / Settlement** | Escrow flow: dana ditahan sampai order completed → saldo supplier → request withdraw → admin approve → disbursement (via payment service). Ledger transaksi supplier, potongan komisi platform | Supplier, Admin |
-| 16 | **Notification (in-app)** | Notifikasi dalam aplikasi (order update, approval, payout) + trigger email via gRPC ke notification service. Read/unread status | Semua |
-| 17 | **Report & Analytics** | Dashboard supplier (penjualan, produk terlaris), dashboard admin (GMV, komisi, supplier aktif), export CSV | Supplier, Admin |
-| 18 | **Media / File Upload** | Upload gambar produk & dokumen verifikasi ke object storage (S3/MinIO), presigned URL, validasi tipe & ukuran, resize/compress via worker | Semua |
-| 19 | **Audit Log** | Pencatatan aksi sensitif (approval, perubahan harga, ban user, payout) untuk keperluan audit admin | Admin |
-| 20 | **Banner / Promo Display** | Banner homepage & featured products yang dikelola admin (bukan sistem voucher — voucher tetap ditunda sesuai keputusan sebelumnya) | Admin |
+| 1 | **Auth** | Register, login, refresh token (JWT), email verification (OTP), password reset, logout (token blacklist in Redis) | Everyone |
+| 2 | **User** | Profile, change password, address management (multi-address, project/warehouse address), avatar upload | User |
+| 3 | **Supplier** | Store registration, verification application (document upload: NIB/KTP), store profile, bank account for payout, operating hours, shipping origin location | Supplier |
+| 4 | **Admin** | Supplier approval, category management, user management (ban/suspend), platform commission setting, product & review moderation | Admin |
+| 5 | **Category** | Hierarchical categories (parent-child): Cement & Aggregate → Portland Cement, Sand, etc. Slug for SEO | Admin (manage), public (read) |
+| 6 | **Product** | Product CRUD, variants (size/unit: sak, batang, m³, dus), multi-image, technical specs (JSON: brand, dimensions, weight), weight & volume per unit (crucial for shipping cost), min. order quantity, draft/active/inactive status | Supplier |
+| 7 | **Inventory** | Stock management per variant, stock reservation on checkout (Redis lock + DB), stock movement history, low-stock notifications | Supplier |
+| 8 | **Search & Catalog** | Full-text search (PostgreSQL `tsvector` + GIN index), filters (category, price, supplier location, rating, brand), sorting, cursor-based pagination | Public |
+| 9 | **Cart** | Per-user cart (persisted in DB, cached in Redis), item grouping per supplier, stock & min. order validation on load | User |
+| 10 | **Checkout** | Order summary, automatic split order per supplier, shipping cost calculation (RajaOngkir: weight + volumetric), courier selection, price & stock re-validation, order creation + stock reservation (transactional) | User |
+| 11 | **Order** | Order status state machine (pending_payment → paid → processed → shipped → delivered → completed / cancelled / refunded), status history, cancellation, receipt confirmation, auto-complete after N days | User, Supplier, Admin |
+| 12 | **Shipping** | RajaOngkir integration (cost & waybill tracking), tracking number entry by supplier, **supplier's own fleet delivery** option (flat rate/per km — common for heavy materials like sand & steel), supplier shipping coverage zone | Supplier |
+| 13 | **Review & Rating** | Per-product review (only buyers whose order is completed), aggregate rating on product & store, supplier reply, review photos | User |
+| 14 | **Wishlist** | Save favorite products | User |
+| 15 | **Payout / Settlement** | Escrow flow: funds held until order completed → supplier balance → withdraw request → admin approve → disbursement (via payment service). Supplier transaction ledger, platform commission deduction | Supplier, Admin |
+| 16 | **Notification (in-app)** | In-app notifications (order update, approval, payout) + email trigger via gRPC to notification service. Read/unread status | Everyone |
+| 17 | **Report & Analytics** | Supplier dashboard (sales, best-selling products), admin dashboard (GMV, commission, active suppliers), CSV export | Supplier, Admin |
+| 18 | **Media / File Upload** | Upload product images & verification documents to object storage (S3/MinIO), presigned URL, type & size validation, resize/compress via worker | Everyone |
+| 19 | **Audit Log** | Logging of sensitive actions (approval, price changes, user ban, payout) for admin audit purposes | Admin |
+| 20 | **Banner / Promo Display** | Homepage banner & featured products managed by admin (not a voucher system — vouchers remain deferred per earlier decision) | Admin |
 
-### External Services (gRPC — sudah ada di rancangan)
+### External Services (gRPC — already in the design)
 
-| Service | Tanggung Jawab |
+| Service | Responsibility |
 |---------|----------------|
-| **Payment Service (Xendit)** | Create invoice/VA/e-wallet, terima webhook Xendit, disbursement untuk payout supplier, refund |
-| **Notification Service (Mailjet)** | Kirim email transaksional (verifikasi, order, payout) berbasis template |
+| **Payment Service (Xendit)** | Create invoice/VA/e-wallet, receive Xendit webhook, disbursement for supplier payout, refund |
+| **Notification Service (Mailjet)** | Send transactional email (verification, order, payout) based on templates |
 
 ### Background Jobs (Asynq Worker)
 
-- `email:send` — delegasi kirim email via notification service
-- `order:expire` — batalkan order yang tidak dibayar dalam X jam + release stok reservasi
-- `order:autocomplete` — auto-complete order N hari setelah delivered
-- `payment:sync` — rekonsiliasi status pembayaran ke payment service
-- `stock:release` — release reservasi stok yang expired
-- `media:process` — resize/compress gambar setelah upload
-- `report:generate` — generate laporan/export CSV besar
-- `notification:lowstock` — cek & kirim notifikasi stok menipis (scheduled/cron via Asynq Scheduler)
+- `email:send` — delegate email sending via notification service
+- `order:expire` — cancel orders unpaid within X hours + release stock reservation
+- `order:autocomplete` — auto-complete order N days after delivered
+- `payment:sync` — reconcile payment status with payment service
+- `stock:release` — release expired stock reservations
+- `media:process` — resize/compress images after upload
+- `report:generate` — generate large reports/CSV exports
+- `notification:lowstock` — check & send low-stock notifications (scheduled/cron via Asynq Scheduler)
 
 ---
 
-## 2. Struktur Direktori Konkret
+## 2. Concrete Directory Structure
 
 ```
 marketplace-bahan-bangunan/
 ├── cmd/
 │   ├── api/main.go                  # HTTP server (Fiber v3)
 │   ├── worker/main.go               # Asynq worker + scheduler
-│   └── migrate/main.go              # runner migrasi + seeder
+│   └── migrate/main.go              # migration runner + seeder
 │
 ├── config/
-│   ├── config.go                    # struct config + Viper loader
-│   └── config.yaml                  # default config (di-override .env)
+│   ├── config.go                    # config struct + Viper loader
+│   └── config.yaml                  # default config (overridden by .env)
 │
 ├── internal/
-│   ├── domain/                      # LAYER 1: entity + kontrak (pure Go, tanpa dependency luar)
+│   ├── domain/                      # LAYER 1: entities + contracts (pure Go, no external dependency)
 │   │   ├── entity/
 │   │   │   ├── user.go
 │   │   │   ├── supplier.go
@@ -78,16 +78,16 @@ marketplace-bahan-bangunan/
 │   │   │   ├── payout.go            # SupplierBalance, LedgerEntry, WithdrawRequest
 │   │   │   ├── notification.go
 │   │   │   └── audit_log.go
-│   │   ├── repository/              # interface repository per domain
+│   │   ├── repository/              # repository interface per domain
 │   │   │   ├── user_repository.go
 │   │   │   ├── product_repository.go
 │   │   │   ├── order_repository.go
 │   │   │   └── ... (per domain)
-│   │   ├── service/                 # interface external service
-│   │   │   ├── payment_service.go   # kontrak ke payment gRPC
+│   │   ├── service/                 # external service interface
+│   │   │   ├── payment_service.go   # contract for payment gRPC
 │   │   │   ├── notification_service.go
-│   │   │   ├── shipping_gateway.go  # kontrak RajaOngkir
-│   │   │   └── storage_service.go   # kontrak object storage
+│   │   │   ├── shipping_gateway.go  # RajaOngkir contract
+│   │   │   └── storage_service.go   # object storage contract
 │   │   └── errs/
 │   │       └── errors.go            # domain error types (ErrNotFound, ErrInsufficientStock, ...)
 │   │
@@ -99,9 +99,9 @@ marketplace-bahan-bangunan/
 │   │   ├── category/
 │   │   ├── product/
 │   │   ├── inventory/
-│   │   ├── catalog/                 # search, filter, product listing publik
+│   │   ├── catalog/                 # search, filter, public product listing
 │   │   ├── cart/
-│   │   ├── checkout/                # orkestrasi: validasi → ongkir → split order → payment
+│   │   ├── checkout/                # orchestration: validate → shipping cost → split order → payment
 │   │   ├── order/
 │   │   ├── shipping/
 │   │   ├── review/
@@ -113,72 +113,72 @@ marketplace-bahan-bangunan/
 │   │
 │   ├── delivery/                    # LAYER 3: transport
 │   │   └── http/
-│   │       ├── handler/             # 1 file per module, mapping ke usecase
+│   │       ├── handler/             # 1 file per module, mapped to usecase
 │   │       ├── middleware/
-│   │       │   ├── auth.go          # JWT parse + inject claims ke context
+│   │       │   ├── auth.go          # JWT parse + inject claims into context
 │   │       │   ├── rbac.go          # RequireRole("admin"|"supplier"|"user")
 │   │       │   ├── ratelimit.go     # sliding window via Redis
 │   │       │   ├── recover.go
 │   │       │   ├── requestid.go
 │   │       │   └── logger.go        # structured request log
-│   │       ├── dto/                 # request/response struct + tag validasi per module
+│   │       ├── dto/                 # request/response structs + validation tags per module
 │   │       └── route/
-│   │           ├── route.go         # registrasi utama
+│   │           ├── route.go         # main registration
 │   │           ├── public.go        # /api/v1/catalog, /auth
-│   │           ├── user.go          # /api/v1/user/* (JWT + role user)
+│   │           ├── user.go          # /api/v1/user/* (JWT + user role)
 │   │           ├── supplier.go      # /api/v1/supplier/*
 │   │           └── admin.go         # /api/v1/admin/*
 │   │
-│   ├── repository/                  # LAYER 4: implementasi persistence
-│   │   ├── postgres/                # pgx + sqlc (atau GORM sesuai preferensi tim)
+│   ├── repository/                  # LAYER 4: persistence implementation
+│   │   ├── postgres/                # pgx + sqlc (or GORM per team preference)
 │   │   │   └── ... (per domain)
 │   │   └── redis/
-│   │       ├── cache.go             # cache produk/kategori
+│   │       ├── cache.go             # product/category cache
 │   │       ├── session.go
-│   │       └── stock_lock.go        # distributed lock reservasi stok
+│   │       └── stock_lock.go        # distributed lock for stock reservation
 │   │
-│   ├── infra/                       # adapter dunia luar
+│   ├── infra/                       # adapters to the outside world
 │   │   ├── database/postgres.go     # pool + health
 │   │   ├── redis/client.go
 │   │   ├── grpcclient/
-│   │   │   ├── payment.go           # implementasi domain/service/payment_service.go
+│   │   │   ├── payment.go           # implementation of domain/service/payment_service.go
 │   │   │   └── notification.go
 │   │   ├── rajaongkir/client.go
 │   │   ├── storage/s3.go            # S3/MinIO
 │   │   └── queue/
 │   │       ├── client.go            # Asynq client (enqueue)
-│   │       ├── tasks.go             # definisi task type + payload
-│   │       └── handlers/            # handler per task (dipakai cmd/worker)
+│   │       ├── tasks.go             # task type + payload definitions
+│   │       └── handlers/            # per-task handler (used by cmd/worker)
 │   │
 │   └── app/
-│       ├── server.go                # wiring Fiber: middleware global, route, graceful shutdown
-│       └── container.go             # dependency injection manual (atau wire/fx)
+│       ├── server.go                # Fiber wiring: global middleware, routes, graceful shutdown
+│       └── container.go             # manual dependency injection (or wire/fx)
 │
-├── pkg/                             # utilitas reusable, tidak tahu domain
+├── pkg/                             # reusable utilities, domain-agnostic
 │   ├── jwt/
-│   ├── response/                    # envelope standar {success, message, data, meta, errors}
+│   ├── response/                    # standard envelope {success, message, data, meta, errors}
 │   ├── pagination/                  # cursor & offset helper
-│   ├── validator/                   # go-playground/validator + custom rules (phone ID, dll)
+│   ├── validator/                   # go-playground/validator + custom rules (ID phone, etc.)
 │   ├── hash/                        # bcrypt/argon2
 │   ├── logger/                      # zerolog/zap setup
-│   └── apperr/                      # mapping domain error → HTTP status
+│   └── apperr/                      # domain error → HTTP status mapping
 │
-├── proto/                           # .proto payment & notification + generated code
+├── proto/                           # payment & notification .proto + generated code
 │   ├── payment/v1/payment.proto
 │   └── notification/v1/notification.proto
 │
 ├── migrations/                      # golang-migrate: 000001_create_users.up.sql / .down.sql
-├── seeds/                           # data awal: roles, kategori bahan bangunan, admin default
+├── seeds/                           # initial data: roles, building-materials categories, default admin
 ├── docs/
 │   ├── openapi.yaml                 # Swagger/OpenAPI spec
-│   └── erd.md                       # ERD + diagram Mermaid dari planning sebelumnya
+│   └── erd.md                       # ERD + Mermaid diagrams from earlier planning
 ├── deploy/
 │   ├── docker-compose.yml           # postgres, redis, minio, api, worker
 │   ├── Dockerfile.api
 │   └── Dockerfile.worker
-├── scripts/                         # helper: gen-proto.sh, lint.sh
+├── scripts/                         # helpers: gen-proto.sh, lint.sh
 ├── test/
-│   ├── integration/                 # test dengan testcontainers
+│   ├── integration/                 # tests with testcontainers
 │   └── mocks/                       # generated mocks (mockery)
 ├── .env.example
 ├── .golangci.yml
@@ -188,38 +188,38 @@ marketplace-bahan-bangunan/
 
 ---
 
-## 3. Keputusan Desain Penting
+## 3. Key Design Decisions
 
-**Split order per supplier.** Satu checkout bisa berisi produk dari beberapa supplier → dipecah menjadi beberapa `orders` (satu per supplier) di bawah satu `checkout_group_id`, tapi **satu invoice pembayaran** ke Xendit. Ongkir dihitung per order (origin supplier berbeda-beda).
+**Split order per supplier.** A single checkout can contain products from multiple suppliers → split into multiple `orders` (one per supplier) under a single `checkout_group_id`, but **a single payment invoice** to Xendit. Shipping cost is calculated per order (each supplier has a different origin).
 
-**Berat & volumetrik wajib di produk.** Bahan bangunan berat (semen 40kg/sak, besi panjang). Ongkir = max(berat aktual, berat volumetrik). Untuk item yang tidak masuk akal dikirim ekspedisi (pasir per m³), aktifkan opsi *pengiriman armada supplier* dengan zona jangkauan.
+**Weight & volumetric are mandatory on products.** Building materials are heavy (40kg cement sacks, long steel bars). Shipping cost = max(actual weight, volumetric weight). For items impractical to ship via courier (sand per m³), enable the *supplier's own fleet delivery* option with a coverage zone.
 
-**Stock reservation, bukan langsung potong.** Saat order dibuat: stok di-reserve (row `stock_reservations` + Redis lock untuk race condition). Dibayar → reservasi dikonversi jadi pengurangan stok. Expired → job `order:expire` release reservasi.
+**Stock reservation, not immediate deduction.** When an order is created: stock is reserved (`stock_reservations` row + Redis lock for race conditions). Paid → reservation converts into a stock deduction. Expired → the `order:expire` job releases the reservation.
 
-**Escrow & ledger untuk payout.** Dana masuk platform dulu. Order completed → kredit ke saldo supplier (dicatat di `ledger_entries`, komisi platform didebit). Withdraw → approval admin → disbursement via payment service. Ledger append-only supaya saldo selalu bisa diaudit.
+**Escrow & ledger for payout.** Funds go to the platform first. Order completed → credited to supplier balance (recorded in `ledger_entries`, platform commission debited). Withdraw → admin approval → disbursement via payment service. Ledger is append-only so balance can always be audited.
 
-**Order status sebagai state machine.** Transisi valid didefinisikan eksplisit di usecase (mis. `paid → processed` hanya oleh supplier, `cancelled` hanya dari `pending_payment`/`paid` dengan refund). Setiap transisi dicatat di `order_status_histories`.
+**Order status as a state machine.** Valid transitions are explicitly defined in the usecase (e.g., `paid → processed` only by supplier, `cancelled` only from `pending_payment`/`paid` with refund). Every transition is recorded in `order_status_histories`.
 
-**RBAC via route group + middleware.** Karena `role_id` sudah FK langsung di `users`, cukup: `admin := v1.Group("/admin", mw.Auth(), mw.RequireRole("admin"))`. Tidak perlu permission table dulu — bisa dievolusi nanti kalau butuh granular permission.
-
----
-
-## 4. Urutan Fase Implementasi yang Disarankan
-
-1. **Fondasi** — skeleton project, config, database + migrasi awal, Redis, logger, response envelope, error handling, middleware dasar, Makefile, docker-compose.
-2. **Auth + RBAC** — register/login/refresh, verifikasi email (lewat worker + notification service stub), middleware role.
-3. **Supplier onboarding** — registrasi toko, upload dokumen (media module), approval admin.
-4. **Katalog** — category, product + varian + gambar, inventory, search & filter publik.
-5. **Transaksi inti** — cart → checkout (ongkir RajaOngkir, split order) → integrasi payment service → order state machine → shipping/resi.
-6. **Pasca-transaksi** — review, notification in-app, payout/ledger + withdraw.
-7. **Pelengkap** — wishlist, report/analytics, audit log, banner, hardening (rate limit, test integrasi, load test ringan).
-
-Setiap fase menghasilkan sesuatu yang bisa di-demo, dan dependensi antar fase mengalir satu arah.
+**RBAC via route group + middleware.** Since `role_id` is already a direct FK on `users`, this suffices: `admin := v1.Group("/admin", mw.Auth(), mw.RequireRole("admin"))`. No permission table needed yet — can evolve later if granular permissions are required.
 
 ---
 
-## 5. Catatan Fiber v3
+## 4. Recommended Implementation Phase Order
 
-- Fiber v3 masih tahap release candidate — API bisa berubah minor sampai stable. Pin versi di `go.mod` dan baca changelog tiap upgrade.
-- Perubahan utama dari v2: `fiber.Ctx` menjadi interface, binding via `c.Bind().Body(&dto)`, middleware bawaan direstrukturisasi.
-- Karena semua kode Fiber terkunci di `internal/delivery/http`, risiko breaking change terisolasi di satu layer — usecase dan repository tidak tersentuh.
+1. **Foundation** — project skeleton, config, database + initial migrations, Redis, logger, response envelope, error handling, basic middleware, Makefile, docker-compose.
+2. **Auth + RBAC** — register/login/refresh, email verification (via worker + notification service stub), role middleware.
+3. **Supplier onboarding** — store registration, document upload (media module), admin approval.
+4. **Catalog** — category, product + variant + image, inventory, public search & filter.
+5. **Core transactions** — cart → checkout (RajaOngkir shipping cost, split order) → payment service integration → order state machine → shipping/tracking number.
+6. **Post-transaction** — review, in-app notification, payout/ledger + withdraw.
+7. **Complementary** — wishlist, report/analytics, audit log, banner, hardening (rate limit, integration tests, light load test).
+
+Each phase produces something demoable, and dependencies between phases flow in one direction.
+
+---
+
+## 5. Fiber v3 Notes
+
+- Fiber v3 is still a release candidate — the API may change minor versions until stable. Pin the version in `go.mod` and read the changelog on every upgrade.
+- Key changes from v2: `fiber.Ctx` becomes an interface, binding via `c.Bind().Body(&dto)`, built-in middleware restructured.
+- Since all Fiber code is locked into `internal/delivery/http`, the risk of breaking changes is isolated to one layer — usecase and repository are untouched.
