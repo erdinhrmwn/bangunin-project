@@ -49,7 +49,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
