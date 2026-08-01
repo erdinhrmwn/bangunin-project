@@ -92,7 +92,7 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete only when needed (default: no)
 
 ### Initial Setup
 
-1. Initialize a git repo if not already done. Main branch: main.
+1. Initialize a git repo if not already done. Main branch: `main` (release only). Integration branch: `develop` (all phase PRs target this). `main` is only updated by merging `develop` at release points.
 2. First commit: all planning documents (CLAUDE.md, docs/) with message `docs: initial project planning documents`.
 3. Create PROGRESS.md containing a checklist of ALL FR and AC from Phase 1–7 (copied from docs/requirements.md), all unchecked. Commit: `docs: add progress tracker`.
 4. If the GitHub remote isn't set up yet, ask for the repo URL. Verify `gh auth status` works — if not, report it and use the fallback.
@@ -101,7 +101,7 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete only when needed (default: no)
 
 For each phase N, run this sequence:
 
-- **A. BRANCH** — from the latest main, create branch: feat/phase-N-<short-name> (e.g., feat/phase-1-foundation, feat/phase-2-auth-rbac). Direct commits to main are FORBIDDEN. One branch = one phase, don't mix.
+- **A. BRANCH** — from the latest `develop`, create branch: feat/phase-N-<short-name> (e.g., feat/phase-1-foundation, feat/phase-2-auth-rbac). Direct commits to `main` or `develop` are FORBIDDEN. One branch = one phase, don't mix.
 - **B. PLAN** — show the implementation plan: list of files to be created/changed, mapped to each FR-N.x, plus the work order as a list of small sub-tasks. WAIT for approval before writing code.
 - **C. IMPLEMENTATION** — work through sub-tasks one by one:
   - Every sub-task must end in a buildable state (run the relevant build + test before committing).
@@ -112,9 +112,9 @@ For each phase N, run this sequence:
 - **D. PHASE VERIFICATION** — run all AC-N.x. The phase is only done when: all ACs pass, `make lint && make test` is green, migrations up/down are clean from an empty database, and `docker compose up` is healthy. Report the status of each AC one by one (pass/fail + brief evidence).
 - **E. PULL REQUEST** — once all ACs pass:
   - Check off all FR & AC for the phase in PROGRESS.md, final commit: `docs: complete phase N progress checklist`.
-  - Push the branch, then create a PR to main via `gh pr create` with: title "Phase N: <phase name>", body containing a summary of changes, the FR & AC checklist that passed, manual testing steps, and notes on decisions made.
+  - Push the branch, then create a PR to `develop` (not `main`) via `gh pr create` with: title in conventional commits format (e.g. `feat: implement phase N <phase name>`), body containing a summary of changes, the FR & AC checklist that passed, manual testing steps, and notes on decisions made.
   - Fallback if gh/remote isn't available: just push the branch (or commit locally), then write a draft PR description to `docs/pr/phase-N.md` and report that a manual PR needs to be created.
-- **F. STOP & WAIT** — don't start the next phase before confirmation that the PR has been reviewed/merged. Once confirmed to proceed: checkout main, pull, repeat the cycle from step A for phase N+1.
+- **F. STOP & WAIT** — don't start the next phase before confirmation that the PR has been reviewed/merged into `develop`. Once confirmed to proceed: checkout `develop`, pull, repeat the cycle from step A for phase N+1.
 
 ### Additional Rules
 
