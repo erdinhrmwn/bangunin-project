@@ -21,11 +21,11 @@ func NewLedgerEntryRepository(db *pgxpool.Pool) *LedgerEntryRepository {
 
 func (r *LedgerEntryRepository) Create(ctx context.Context, e *entity.LedgerEntry) error {
 	const q = `
-		INSERT INTO ledger_entries (id, order_id, supplier_id, type, amount, balance_after)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO ledger_entries (id, order_id, withdraw_request_id, supplier_id, type, amount, balance_after)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING created_at
 	`
-	err := r.db.QueryRow(ctx, q, e.ID, e.OrderID, e.SupplierID, e.Type, e.Amount, e.BalanceAfter).Scan(&e.CreatedAt)
+	err := r.db.QueryRow(ctx, q, e.ID, e.OrderID, e.WithdrawRequestID, e.SupplierID, e.Type, e.Amount, e.BalanceAfter).Scan(&e.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("postgres: create ledger entry: %w", err)
 	}
@@ -49,11 +49,11 @@ func (r *LedgerEntryRepository) ListBySupplier(ctx context.Context, supplierID u
 	return out, total, err
 }
 
-const selectLedgerEntryCols = `SELECT id, order_id, supplier_id, type, amount, balance_after, created_at `
+const selectLedgerEntryCols = `SELECT id, order_id, withdraw_request_id, supplier_id, type, amount, balance_after, created_at `
 
 func scanLedgerEntry(row rowScanner) (*entity.LedgerEntry, error) {
 	var e entity.LedgerEntry
-	err := row.Scan(&e.ID, &e.OrderID, &e.SupplierID, &e.Type, &e.Amount, &e.BalanceAfter, &e.CreatedAt)
+	err := row.Scan(&e.ID, &e.OrderID, &e.WithdrawRequestID, &e.SupplierID, &e.Type, &e.Amount, &e.BalanceAfter, &e.CreatedAt)
 	return &e, err
 }
 

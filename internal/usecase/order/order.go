@@ -449,7 +449,7 @@ func (u *Usecase) onOrderCompleted(ctx context.Context, o *entity.Order) error {
 		return fmt.Errorf("order: credit supplier balance: %w", err)
 	}
 	if err := u.ledger.Create(ctx, &entity.LedgerEntry{
-		ID: mustNewV7(), OrderID: o.ID, SupplierID: o.SupplierID,
+		ID: mustNewV7(), OrderID: &o.ID, SupplierID: o.SupplierID,
 		Type: entity.LedgerTypeCreditOrder, Amount: credit, BalanceAfter: balance,
 	}); err != nil {
 		return fmt.Errorf("order: record credit ledger entry: %w", err)
@@ -460,7 +460,7 @@ func (u *Usecase) onOrderCompleted(ctx context.Context, o *entity.Order) error {
 		return fmt.Errorf("order: debit commission: %w", err)
 	}
 	if err := u.ledger.Create(ctx, &entity.LedgerEntry{
-		ID: mustNewV7(), OrderID: o.ID, SupplierID: o.SupplierID,
+		ID: mustNewV7(), OrderID: &o.ID, SupplierID: o.SupplierID,
 		Type: entity.LedgerTypeDebitCommission, Amount: o.CommissionAmount, BalanceAfter: balance,
 	}); err != nil {
 		return fmt.Errorf("order: record commission ledger entry: %w", err)

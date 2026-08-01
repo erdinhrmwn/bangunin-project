@@ -288,7 +288,7 @@ func TestComplete_SettlesLedgerCourierShipment(t *testing.T) {
 
 	d.balances.EXPECT().Increment(mock.Anything, supplierID, float64(1_000_000)).Return(1_000_000.0, nil)
 	d.ledger.EXPECT().Create(mock.Anything, mock.MatchedBy(func(e *entity.LedgerEntry) bool {
-		return e.OrderID == orderID && e.SupplierID == supplierID && e.Type == entity.LedgerTypeCreditOrder &&
+		return e.OrderID != nil && *e.OrderID == orderID && e.SupplierID == supplierID && e.Type == entity.LedgerTypeCreditOrder &&
 			e.Amount == 1_000_000 && e.BalanceAfter == 1_000_000
 	})).Return(nil)
 
