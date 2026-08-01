@@ -78,6 +78,27 @@ func (h *UserHandler) UpdatePassword(c fiber.Ctx) error {
 	return c.JSON(response.Success("Password changed", nil))
 }
 
+func (h *UserHandler) UpdateNotificationSettings(c fiber.Ctx) error {
+	var req dto.UpdateNotificationSettingsRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return badRequest(c)
+	}
+	if verrs := validator.Struct(req); verrs != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(response.Error("Invalid data", verrs))
+	}
+
+	id, err := uuid.Parse(ctxutil.UserID(c))
+	if err != nil {
+		return errJSON(c, err)
+	}
+
+	usr, err := h.user.UpdateNotificationSettings(c.Context(), id, *req.EmailMarketing)
+	if err != nil {
+		return errJSON(c, err)
+	}
+	return c.JSON(response.Success("Notification settings updated", toUserResponse(usr)))
+}
+
 func toUserResponse(usr *entity.User) dto.UserResponse {
 	var verifiedAt *string
 	if usr.EmailVerifiedAt != nil {
@@ -92,5 +113,6 @@ func toUserResponse(usr *entity.User) dto.UserResponse {
 		Role:            entity.RoleName(usr.RoleID),
 		Status:          usr.Status,
 		EmailVerifiedAt: verifiedAt,
+		EmailMarketing:  usr.EmailMarketing,
 	}
 }

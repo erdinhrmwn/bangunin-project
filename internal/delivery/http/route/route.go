@@ -36,6 +36,7 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	userGroup.Get("/me", user.Me)
 	userGroup.Patch("/me", user.UpdateMe)
 	userGroup.Patch("/me/password", user.UpdatePassword)
+	userGroup.Patch("/me/notification-settings", user.UpdateNotificationSettings)
 	userGroup.Get("/addresses", address.List)
 	userGroup.Post("/addresses", address.Create)
 	userGroup.Put("/addresses/:id", address.Update)
