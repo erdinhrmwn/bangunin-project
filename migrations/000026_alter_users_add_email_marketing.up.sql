@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN email_marketing BOOLEAN NOT NULL DEFAULT true;
