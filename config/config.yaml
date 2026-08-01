@@ -1,0 +1,34 @@
+app:
+  name: bangunin
+  env: development
+  port: 8080
+
+db:
+  dsn: "postgres://bangunin:bangunin@localhost:5432/bangunin?sslmode=disable"
+  max_conns: 10
+  min_conns: 2
+  max_conn_life: 1h
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+jwt:
+  secret: "change-me-in-env"
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+xendit:
+  secret_key: ""
+  callback_token: ""
+
+rajaongkir:
+  api_key: ""
+  mock: true
+
+r2:
+  access_key: ""
+  secret_key: ""
+  bucket: ""
+  endpoint: ""
