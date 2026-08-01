@@ -36,3 +36,17 @@ func (c *PaymentClient) CreateInvoice(ctx context.Context, checkoutGroupID uuid.
 	}
 	return resp.InvoiceId, resp.InvoiceUrl, nil
 }
+
+func (c *PaymentClient) Disburse(ctx context.Context, withdrawID uuid.UUID, amount float64, bankCode, accountNumber, accountName string) (disbursementID string, err error) {
+	resp, err := c.client.Disburse(ctx, &paymentv1.DisburseRequest{
+		WithdrawId:    withdrawID.String(),
+		Amount:        amount,
+		BankCode:      bankCode,
+		AccountNumber: accountNumber,
+		AccountName:   accountName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("grpcclient: disburse: %w", err)
+	}
+	return resp.DisbursementId, nil
+}

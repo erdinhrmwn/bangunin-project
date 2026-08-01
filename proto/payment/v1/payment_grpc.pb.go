@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	PaymentService_CreateInvoice_FullMethodName = "/payment.v1.PaymentService/CreateInvoice"
+	PaymentService_Disburse_FullMethodName      = "/payment.v1.PaymentService/Disburse"
 )
 
 // PaymentServiceClient is the client API for PaymentService service.
@@ -30,6 +31,7 @@ const (
 // and consumed by the monolith via internal/infra/grpcclient (FR-5.5).
 type PaymentServiceClient interface {
 	CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*CreateInvoiceResponse, error)
+	Disburse(ctx context.Context, in *DisburseRequest, opts ...grpc.CallOption) (*DisburseResponse, error)
 }
 
 type paymentServiceClient struct {
@@ -50,6 +52,16 @@ func (c *paymentServiceClient) CreateInvoice(ctx context.Context, in *CreateInvo
 	return out, nil
 }
 
+func (c *paymentServiceClient) Disburse(ctx context.Context, in *DisburseRequest, opts ...grpc.CallOption) (*DisburseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DisburseResponse)
+	err := c.cc.Invoke(ctx, PaymentService_Disburse_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PaymentServiceServer is the server API for PaymentService service.
 // All implementations must embed UnimplementedPaymentServiceServer
 // for forward compatibility.
@@ -58,6 +70,7 @@ func (c *paymentServiceClient) CreateInvoice(ctx context.Context, in *CreateInvo
 // and consumed by the monolith via internal/infra/grpcclient (FR-5.5).
 type PaymentServiceServer interface {
 	CreateInvoice(context.Context, *CreateInvoiceRequest) (*CreateInvoiceResponse, error)
+	Disburse(context.Context, *DisburseRequest) (*DisburseResponse, error)
 	mustEmbedUnimplementedPaymentServiceServer()
 }
 
@@ -70,6 +83,9 @@ type UnimplementedPaymentServiceServer struct{}
 
 func (UnimplementedPaymentServiceServer) CreateInvoice(context.Context, *CreateInvoiceRequest) (*CreateInvoiceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateInvoice not implemented")
+}
+func (UnimplementedPaymentServiceServer) Disburse(context.Context, *DisburseRequest) (*DisburseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Disburse not implemented")
 }
 func (UnimplementedPaymentServiceServer) mustEmbedUnimplementedPaymentServiceServer() {}
 func (UnimplementedPaymentServiceServer) testEmbeddedByValue()                        {}
@@ -110,6 +126,24 @@ func _PaymentService_CreateInvoice_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PaymentService_Disburse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisburseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PaymentServiceServer).Disburse(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PaymentService_Disburse_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PaymentServiceServer).Disburse(ctx, req.(*DisburseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PaymentService_ServiceDesc is the grpc.ServiceDesc for PaymentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -120,6 +154,10 @@ var PaymentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateInvoice",
 			Handler:    _PaymentService_CreateInvoice_Handler,
+		},
+		{
+			MethodName: "Disburse",
+			Handler:    _PaymentService_Disburse_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
