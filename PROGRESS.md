@@ -54,15 +54,15 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 ## PHASE 3 — Supplier Onboarding
 
 ### Functional Requirements
-- [ ] FR-3.1 Media module (upload + resize)
-- [ ] FR-3.2 Store profile
-- [ ] FR-3.3 KYC documents
-- [ ] FR-3.4 Bank account
-- [ ] FR-3.5 Submit application
-- [ ] FR-3.6 Admin review (approve/reject/suspend)
-- [ ] FR-3.7 Audit log
-- [ ] FR-3.8 Notifications
-- [ ] FR-3.9 RequireApprovedSupplier guard
+- [x] FR-3.1 Media module (upload + resize)
+- [x] FR-3.2 Store profile
+- [x] FR-3.3 KYC documents
+- [x] FR-3.4 Bank account
+- [x] FR-3.5 Submit application
+- [x] FR-3.6 Admin review (approve/reject/suspend)
+- [x] FR-3.7 Audit log
+- [x] FR-3.8 Notifications
+- [x] FR-3.9 RequireApprovedSupplier guard
 
 ### Acceptance Criteria
 - [ ] AC-3.a Full flow profile→documents→submit→reject→fix→approve
