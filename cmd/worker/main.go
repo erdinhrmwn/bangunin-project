@@ -4,13 +4,17 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
 	"erdinhrmwn/bangunin/config"
+	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/infra/database"
 	"erdinhrmwn/bangunin/internal/infra/grpcclient"
 	"erdinhrmwn/bangunin/internal/infra/queue"
@@ -19,6 +23,7 @@ import (
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
 	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
+	reportusecase "erdinhrmwn/bangunin/internal/usecase/report"
 	"erdinhrmwn/bangunin/pkg/imageresize"
 	"erdinhrmwn/bangunin/pkg/logger"
 )
@@ -122,6 +127,76 @@ func main() {
 	})
 	mux.HandleFunc(queue.TaskOrderAutocomplete, func(ctx context.Context, t *asynq.Task) error {
 		return orderUC.HandleAutocomplete(ctx)
+	})
+
+	supplierRepo := postgresrepo.NewSupplierRepository(db)
+	userRepo := postgresrepo.NewUserRepository(db)
+	notificationRepo := postgresrepo.NewNotificationRepository(db)
+	reportUC := reportusecase.New(postgresrepo.NewOrderRepository(db), enqueuer)
+	mux.HandleFunc(queue.TaskReportGenerate, func(ctx context.Context, t *asynq.Task) error {
+		var p queue.ReportGeneratePayload
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("report:generate: unmarshal payload: %w", err)
+		}
+		summary, err := reportUC.GetSummary(ctx, p.SupplierID, p.From, p.To)
+		if err != nil {
+			return fmt.Errorf("report:generate: get summary: %w", err)
+		}
+
+		var buf bytes.Buffer
+		w := csv.NewWriter(&buf)
+		_ = w.Write([]string{"GMV", "Orders", "AOV"})
+		_ = w.Write([]string{fmt.Sprintf("%.2f", summary.GMV), fmt.Sprintf("%d", summary.OrdersCount), fmt.Sprintf("%.2f", summary.AOV)})
+		_ = w.Write([]string{})
+		_ = w.Write([]string{"Product", "Qty", "Revenue"})
+		for _, tp := range summary.TopProducts {
+			_ = w.Write([]string{tp.ProductName, fmt.Sprintf("%d", tp.Qty), fmt.Sprintf("%.2f", tp.Revenue)})
+		}
+		_ = w.Write([]string{})
+		_ = w.Write([]string{"Day", "GMV", "Orders"})
+		for _, d := range summary.SalesPerDay {
+			_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
+		}
+		w.Flush()
+		if err := w.Error(); err != nil {
+			return fmt.Errorf("report:generate: write csv: %w", err)
+		}
+		data := buf.Bytes()
+
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("report:generate: generate id: %w", err)
+		}
+		key := fmt.Sprintf("reports/%s/%s.csv", p.SupplierID, id)
+		if _, err := mediaStorage.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), "text/csv"); err != nil {
+			return fmt.Errorf("report:generate: upload %s: %w", key, err)
+		}
+		downloadURL, err := mediaStorage.PresignedURL(ctx, key, 24*time.Hour)
+		if err != nil {
+			return fmt.Errorf("report:generate: presign %s: %w", key, err)
+		}
+
+		s, err := supplierRepo.FindByID(ctx, p.SupplierID)
+		if err != nil {
+			return fmt.Errorf("report:generate: find supplier: %w", err)
+		}
+		usr, err := userRepo.FindByID(ctx, s.UserID)
+		if err != nil {
+			return fmt.Errorf("report:generate: find user: %w", err)
+		}
+
+		title := "Sales report ready"
+		body := fmt.Sprintf("Your sales report is ready. Download it here (valid 24h): %s", downloadURL)
+		notifID, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("report:generate: generate notification id: %w", err)
+		}
+		if err := notificationRepo.Create(ctx, &entity.Notification{
+			ID: notifID, UserID: usr.ID, Type: entity.NotificationTypeSystem, Title: title, Body: body,
+		}); err != nil {
+			return fmt.Errorf("report:generate: create notification: %w", err)
+		}
+		return notifier.SendEmail(ctx, usr.Email, title, body)
 	})
 
 	scheduler := asynq.NewScheduler(redisOpt, nil)

@@ -194,3 +194,68 @@ func scanOrderItem(row rowScanner) (*entity.OrderItem, error) {
 	err := row.Scan(&i.ID, &i.OrderID, &i.VariantID, &i.ProductName, &i.VariantName, &i.Unit, &i.Price, &i.Qty, &i.WeightGram)
 	return &i, err
 }
+
+func (r *OrderRepository) SalesSummary(ctx context.Context, supplierID uuid.UUID, from, to time.Time) (float64, int, error) {
+	var gmv float64
+	var count int
+	const q = `
+		SELECT COALESCE(SUM(total), 0), COUNT(*) FROM orders
+		WHERE supplier_id = $1 AND status = 'completed' AND created_at BETWEEN $2 AND $3
+	`
+	if err := r.db.QueryRow(ctx, q, supplierID, from, to).Scan(&gmv, &count); err != nil {
+		return 0, 0, fmt.Errorf("postgres: sales summary: %w", err)
+	}
+	return gmv, count, nil
+}
+
+func (r *OrderRepository) TopProducts(ctx context.Context, supplierID uuid.UUID, from, to time.Time, limit int) ([]*entity.TopProduct, error) {
+	const q = `
+		SELECT oi.product_name, SUM(oi.qty), SUM(oi.price * oi.qty)
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		WHERE o.supplier_id = $1 AND o.status = 'completed' AND o.created_at BETWEEN $2 AND $3
+		GROUP BY oi.product_name
+		ORDER BY SUM(oi.price * oi.qty) DESC
+		LIMIT $4
+	`
+	rows, err := r.db.Query(ctx, q, supplierID, from, to, limit)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: top products: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*entity.TopProduct
+	for rows.Next() {
+		var p entity.TopProduct
+		if err := rows.Scan(&p.ProductName, &p.Qty, &p.Revenue); err != nil {
+			return nil, fmt.Errorf("postgres: scan top product: %w", err)
+		}
+		out = append(out, &p)
+	}
+	return out, rows.Err()
+}
+
+func (r *OrderRepository) SalesPerDay(ctx context.Context, supplierID uuid.UUID, from, to time.Time) ([]*entity.DailySales, error) {
+	const q = `
+		SELECT date_trunc('day', created_at), SUM(total), COUNT(*)
+		FROM orders
+		WHERE supplier_id = $1 AND status = 'completed' AND created_at BETWEEN $2 AND $3
+		GROUP BY date_trunc('day', created_at)
+		ORDER BY date_trunc('day', created_at)
+	`
+	rows, err := r.db.Query(ctx, q, supplierID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: sales per day: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*entity.DailySales
+	for rows.Next() {
+		var d entity.DailySales
+		if err := rows.Scan(&d.Day, &d.GMV, &d.Orders); err != nil {
+			return nil, fmt.Errorf("postgres: scan daily sales: %w", err)
+		}
+		out = append(out, &d)
+	}
+	return out, rows.Err()
+}

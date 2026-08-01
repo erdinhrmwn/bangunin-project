@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -77,4 +79,12 @@ func (s *MinIOStorage) Delete(ctx context.Context, key string) error {
 		return fmt.Errorf("storage: delete %s: %w", key, err)
 	}
 	return nil
+}
+
+func (s *MinIOStorage) PresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	u, err := s.client.PresignedGetObject(ctx, s.bucket, key, expiry, url.Values{})
+	if err != nil {
+		return "", fmt.Errorf("storage: presign %s: %w", key, err)
+	}
+	return u.String(), nil
 }

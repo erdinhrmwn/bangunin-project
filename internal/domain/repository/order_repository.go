@@ -24,4 +24,14 @@ type OrderRepository interface {
 	CreateItems(ctx context.Context, items []*entity.OrderItem) error
 	ListItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]*entity.OrderItem, error)
 	FindItemByID(ctx context.Context, itemID uuid.UUID) (*entity.OrderItem, error)
+
+	// SalesSummary returns GMV (sum of Total) and order count for a
+	// supplier's completed orders created within [from, to] (FR-7.3).
+	SalesSummary(ctx context.Context, supplierID uuid.UUID, from, to time.Time) (gmv float64, ordersCount int, err error)
+	// TopProducts returns the top-selling products by revenue for a
+	// supplier's completed orders within [from, to] (FR-7.3).
+	TopProducts(ctx context.Context, supplierID uuid.UUID, from, to time.Time, limit int) ([]*entity.TopProduct, error)
+	// SalesPerDay returns a daily GMV/order-count series for a supplier's
+	// completed orders within [from, to] (FR-7.3).
+	SalesPerDay(ctx context.Context, supplierID uuid.UUID, from, to time.Time) ([]*entity.DailySales, error)
 }

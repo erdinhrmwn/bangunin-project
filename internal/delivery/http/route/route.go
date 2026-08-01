@@ -12,7 +12,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, payout *handler.PayoutHandler, review *handler.ReviewHandler, wishlist *handler.WishlistHandler, banner *handler.BannerHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, payout *handler.PayoutHandler, review *handler.ReviewHandler, wishlist *handler.WishlistHandler, banner *handler.BannerHandler, report *handler.ReportHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
 	app.Get("/health", health.Check)
 
 	// No auth middleware — protected by X-Internal-Secret header check in the handler (FR-5.6).
@@ -95,6 +95,8 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	supplierGroup.Post("/withdraws", approvedSupplier, payout.Request)
 	supplierGroup.Get("/withdraws", approvedSupplier, payout.ListMine)
 	supplierGroup.Get("/withdraws/:id", approvedSupplier, payout.GetMine)
+	supplierGroup.Get("/reports/summary", approvedSupplier, report.Summary)
+	supplierGroup.Get("/reports/export", approvedSupplier, report.Export)
 
 	adminGroup := api.Group("/admin", authMw, middleware.RequireRole(entity.RoleAdmin))
 	adminGroup.Get("/me", user.Me)

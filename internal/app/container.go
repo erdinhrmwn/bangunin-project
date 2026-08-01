@@ -31,6 +31,7 @@ import (
 	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
 	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
 	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
+	reportusecase "erdinhrmwn/bangunin/internal/usecase/report"
 	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
 	bannerusecase "erdinhrmwn/bangunin/internal/usecase/banner"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
@@ -75,6 +76,7 @@ type Container struct {
 	Review        *handler.ReviewHandler
 	Wishlist      *handler.WishlistHandler
 	Banner        *handler.BannerHandler
+	Report        *handler.ReportHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -160,6 +162,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	reviewUC := reviewusecase.New(reviewRepo, orderRepo, productVariantRepo, productRepo)
 	wishlistUC := wishlistusecase.New(wishlistRepo, productRepo)
 	bannerUC := bannerusecase.New(bannerRepo, rdb)
+	reportUC := reportusecase.New(orderRepo, enqueuer)
 	checkoutUC := checkoutusecase.New(
 		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
 		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
@@ -195,6 +198,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Review:        handler.NewReviewHandler(reviewUC, productRepo),
 		Wishlist:      handler.NewWishlistHandler(wishlistUC),
 		Banner:        handler.NewBannerHandler(bannerUC),
+		Report:        handler.NewReportHandler(reportUC, supplierRepo),
 	}, nil
 }
 
