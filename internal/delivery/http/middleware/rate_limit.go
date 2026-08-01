@@ -11,7 +11,7 @@ import (
 	"erdinhrmwn/bangunin/pkg/response"
 )
 
-// RateLimit is a Redis-backed sliding-window limiter: 60 req/menit/IP by
+// RateLimit is a Redis-backed sliding-window limiter: 60 req/min/IP by
 // default, skipping /health so uptime checks are never throttled.
 func RateLimit(client *redis.Client) fiber.Handler {
 	return limiter.New(limiter.Config{
@@ -23,7 +23,7 @@ func RateLimit(client *redis.Client) fiber.Handler {
 		KeyGenerator:      func(c fiber.Ctx) string { return c.IP() },
 		LimitReached: func(c fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(
-				response.Error("Terlalu banyak permintaan, coba lagi nanti", nil),
+				response.Error("Too many requests, please try again later", nil),
 			)
 		},
 	})

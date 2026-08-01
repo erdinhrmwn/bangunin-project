@@ -33,16 +33,16 @@ func From(err error) *AppError {
 
 	switch {
 	case errors.Is(err, errs.ErrNotFound):
-		return New("NOT_FOUND", "Data tidak ditemukan", http.StatusNotFound)
+		return New("NOT_FOUND", "Data not found", http.StatusNotFound)
 	case errors.Is(err, errs.ErrValidation):
-		return New("VALIDATION_ERROR", "Data tidak valid", http.StatusUnprocessableEntity)
+		return New("VALIDATION_ERROR", "Invalid data", http.StatusUnprocessableEntity)
 	case errors.Is(err, errs.ErrUnauthorized):
-		return New("UNAUTHORIZED", "Autentikasi diperlukan", http.StatusUnauthorized)
+		return New("UNAUTHORIZED", "Authentication required", http.StatusUnauthorized)
 	case errors.Is(err, errs.ErrForbidden):
-		return New("FORBIDDEN", "Akses ditolak", http.StatusForbidden)
+		return New("FORBIDDEN", "Access denied", http.StatusForbidden)
 	case errors.Is(err, errs.ErrConflict):
-		return New("CONFLICT", "Data bertentangan", http.StatusConflict)
+		return New("CONFLICT", "Data conflict", http.StatusConflict)
 	default:
-		return New("INTERNAL_ERROR", "Terjadi kesalahan pada server", http.StatusInternalServerError)
+		return New("INTERNAL_ERROR", "Internal server error", http.StatusInternalServerError)
 	}
 }

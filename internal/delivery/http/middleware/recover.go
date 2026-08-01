@@ -21,7 +21,7 @@ func Recover(log zerolog.Logger) fiber.Handler {
 					Str("request_id", c.Get("X-Request-ID")).
 					Msg("panic recovered")
 				_ = c.Status(fiber.StatusInternalServerError).JSON(
-					response.Error("Terjadi kesalahan pada server", nil),
+					response.Error("Internal server error", nil),
 				)
 			}
 		}()
