@@ -2,8 +2,21 @@
 // the API (enqueue) and worker (handle) processes.
 package queue
 
-// Task type names. Real task payloads/handlers land alongside their owning
-// phase (e.g. email:send in Fase 2); only the heartbeat dummy exists here.
+import "encoding/json"
+
+// Task type names.
 const (
 	TaskHeartbeat = "system:heartbeat"
+	TaskEmailSend = "email:send"
 )
+
+// EmailSendPayload is TaskEmailSend's JSON payload.
+type EmailSendPayload struct {
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
+}
+
+func (p EmailSendPayload) Marshal() ([]byte, error) {
+	return json.Marshal(p)
+}

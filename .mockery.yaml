@@ -1,0 +1,11 @@
+with-expecter: true
+dir: "{{.InterfaceDir}}/mocks"
+outpkg: mocks
+packages:
+  erdinhrmwn/bangunin/internal/domain/repository:
+    interfaces:
+      UserRepository:
+      AuthRepository:
+  erdinhrmwn/bangunin/internal/domain/service:
+    interfaces:
+      EmailEnqueuer:

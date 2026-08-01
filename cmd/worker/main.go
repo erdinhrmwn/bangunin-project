@@ -3,12 +3,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/hibiken/asynq"
 
 	"erdinhrmwn/bangunin/config"
+	"erdinhrmwn/bangunin/internal/infra/grpcclient"
 	"erdinhrmwn/bangunin/internal/infra/queue"
 	"erdinhrmwn/bangunin/pkg/logger"
 )
@@ -27,6 +29,15 @@ func main() {
 	mux.HandleFunc(queue.TaskHeartbeat, func(ctx context.Context, t *asynq.Task) error {
 		log.Info().Msg("heartbeat")
 		return nil
+	})
+
+	notifier := grpcclient.NewNotificationStub(log)
+	mux.HandleFunc(queue.TaskEmailSend, func(ctx context.Context, t *asynq.Task) error {
+		var p queue.EmailSendPayload
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("email:send: unmarshal payload: %w", err)
+		}
+		return notifier.SendEmail(ctx, p.To, p.Subject, p.Body)
 	})
 
 	// Scheduler is wired but intentionally empty — periodic jobs (e.g.
