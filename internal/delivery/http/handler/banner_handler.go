@@ -2,12 +2,12 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
-	bannerusecase "erdinhrmwn/bangunin/internal/usecase/banner"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	bannerusecase "erdinhrmwn/bangunin/internal/usecase/banner"
 )
 
 // BannerHandler serves admin banner CRUD and the public active list (FR-7.2).
@@ -46,9 +46,9 @@ func (h *BannerHandler) Create(c fiber.Ctx) error {
 }
 
 func (h *BannerHandler) Update(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.BannerRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -65,9 +65,9 @@ func (h *BannerHandler) Update(c fiber.Ctx) error {
 }
 
 func (h *BannerHandler) Delete(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	if err := h.banner.Delete(c.Context(), id); err != nil {
 		return errJSON(c, err)

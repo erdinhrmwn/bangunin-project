@@ -7,10 +7,11 @@ import (
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
 )
 
 // ReviewHandler serves review creation (FR-6.5), mounted under
@@ -25,9 +26,9 @@ func NewReviewHandler(review *reviewusecase.Usecase, products repository.Product
 }
 
 func (h *ReviewHandler) Create(c fiber.Ctx) error {
-	orderItemID, err := uuid.Parse(c.Params("order_item_id"))
+	orderItemID, err := parseUUIDParam(c, "order_item_id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.CreateReviewRequest
 	if err := c.Bind().Body(&req); err != nil {

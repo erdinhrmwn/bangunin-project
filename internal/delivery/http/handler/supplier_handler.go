@@ -6,9 +6,10 @@ import (
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 )
 
 // SupplierHandler serves the caller's own store profile, documents, bank
@@ -147,9 +148,9 @@ func (h *SupplierHandler) CreateBankAccount(c fiber.Ctx) error {
 }
 
 func (h *SupplierHandler) UpdateBankAccount(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.BankAccountRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -183,9 +184,9 @@ func (h *SupplierHandler) ListBankAccounts(c fiber.Ctx) error {
 }
 
 func (h *SupplierHandler) DeleteBankAccount(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	userID, err := uuid.Parse(ctxutil.UserID(c))
 	if err != nil {

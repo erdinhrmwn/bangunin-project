@@ -6,9 +6,10 @@ import (
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 )
 
 // AddressHandler serves user address book CRUD (FR-5.1), mounted under /user/addresses.
@@ -70,9 +71,9 @@ func (h *AddressHandler) Update(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c)
 	}
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.AddressRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -93,9 +94,9 @@ func (h *AddressHandler) Delete(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c)
 	}
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	if err := h.user.DeleteAddress(c.Context(), userID, id); err != nil {
 		return errJSON(c, err)

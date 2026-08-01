@@ -9,10 +9,11 @@ import (
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	catalogusecase "erdinhrmwn/bangunin/internal/usecase/catalog"
-	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
+
+	catalogusecase "erdinhrmwn/bangunin/internal/usecase/catalog"
+	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 )
 
 // CatalogHandler serves the public storefront: search, product detail,

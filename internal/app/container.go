@@ -17,6 +17,10 @@ import (
 	"erdinhrmwn/bangunin/internal/infra/queue"
 	"erdinhrmwn/bangunin/internal/infra/rajaongkir"
 	"erdinhrmwn/bangunin/internal/infra/storage"
+	"erdinhrmwn/bangunin/pkg/jwt"
+	"erdinhrmwn/bangunin/pkg/logger"
+
+	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 	redisrepo "erdinhrmwn/bangunin/internal/repository/redis"
 	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
@@ -37,10 +41,6 @@ import (
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
-	"erdinhrmwn/bangunin/pkg/jwt"
-	"erdinhrmwn/bangunin/pkg/logger"
-
-	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 )
 
 // Container holds process-wide dependencies, built once at startup.
@@ -190,7 +190,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Product:       handler.NewProductHandler(productUC, supplierRepo),
 		Inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
 		Catalog:       handler.NewCatalogHandler(catalogUC, wishlistUC),
-		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, orderUC),
+		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, cfg.Payment.InternalIPAllowlist, orderUC),
 		Address:       handler.NewAddressHandler(userUC),
 		Cart:          handler.NewCartHandler(cartUC),
 		Checkout:      handler.NewCheckoutHandler(checkoutUC),

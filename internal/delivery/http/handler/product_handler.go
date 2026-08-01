@@ -7,10 +7,11 @@ import (
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
 )
 
 // resolveSupplierID looks up the calling user's supplier profile ID.
@@ -83,9 +84,9 @@ func (h *ProductHandler) Create(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) Update(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.ProductRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -106,9 +107,9 @@ func (h *ProductHandler) Update(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) Get(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {
@@ -135,9 +136,9 @@ func (h *ProductHandler) List(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) Publish(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {
@@ -151,9 +152,9 @@ func (h *ProductHandler) Publish(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) CreateVariant(c fiber.Ctx) error {
-	productID, err := uuid.Parse(c.Params("id"))
+	productID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.VariantRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -174,9 +175,9 @@ func (h *ProductHandler) CreateVariant(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) UpdateVariant(c fiber.Ctx) error {
-	variantID, err := uuid.Parse(c.Params("variantId"))
+	variantID, err := parseUUIDParam(c, "variantId")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.VariantRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -197,9 +198,9 @@ func (h *ProductHandler) UpdateVariant(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) ListVariants(c fiber.Ctx) error {
-	productID, err := uuid.Parse(c.Params("id"))
+	productID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {
@@ -213,9 +214,9 @@ func (h *ProductHandler) ListVariants(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) AttachImage(c fiber.Ctx) error {
-	productID, err := uuid.Parse(c.Params("id"))
+	productID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.AttachImageRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -236,13 +237,13 @@ func (h *ProductHandler) AttachImage(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) SetPrimaryImage(c fiber.Ctx) error {
-	productID, err := uuid.Parse(c.Params("id"))
+	productID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
-	imageID, err := uuid.Parse(c.Params("imageId"))
+	imageID, err := parseUUIDParam(c, "imageId")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {
@@ -255,13 +256,13 @@ func (h *ProductHandler) SetPrimaryImage(c fiber.Ctx) error {
 }
 
 func (h *ProductHandler) DeleteImage(c fiber.Ctx) error {
-	productID, err := uuid.Parse(c.Params("id"))
+	productID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
-	imageID, err := uuid.Parse(c.Params("imageId"))
+	imageID, err := parseUUIDParam(c, "imageId")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {

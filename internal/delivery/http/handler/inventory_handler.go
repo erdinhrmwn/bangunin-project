@@ -2,14 +2,14 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/domain/repository"
-	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
 )
 
 // InventoryHandler serves supplier stock adjustment and movement history
@@ -24,9 +24,9 @@ func NewInventoryHandler(inventory *inventoryusecase.Usecase, suppliers reposito
 }
 
 func (h *InventoryHandler) AdjustStock(c fiber.Ctx) error {
-	variantID, err := uuid.Parse(c.Params("id"))
+	variantID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.StockAdjustmentRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -47,9 +47,9 @@ func (h *InventoryHandler) AdjustStock(c fiber.Ctx) error {
 }
 
 func (h *InventoryHandler) ListMovements(c fiber.Ctx) error {
-	variantID, err := uuid.Parse(c.Params("id"))
+	variantID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {

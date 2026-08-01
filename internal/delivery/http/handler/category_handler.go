@@ -6,9 +6,10 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
-	categoryusecase "erdinhrmwn/bangunin/internal/usecase/category"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	categoryusecase "erdinhrmwn/bangunin/internal/usecase/category"
 )
 
 // CategoryHandler serves admin category CRUD and the public tree (FR-4.1).

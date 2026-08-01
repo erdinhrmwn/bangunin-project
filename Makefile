@@ -1,5 +1,5 @@
 .PHONY: help run run-worker build clean migrate-up migrate-down migrate-create seed \
-        test test-cover lint fmt vet tidy gen-proto \
+        test test-cover lint fmt vet tidy gen-proto vuln \
         docker-up docker-down docker-logs docker-build
 
 help: ## Show this help
@@ -73,6 +73,10 @@ vet: ## Run go vet
 tidy: ## Tidy go.mod/go.sum
 	@echo "📦 tidying go modules..."
 	go mod tidy
+
+vuln: ## Audit dependencies for known vulnerabilities (FR-7.5)
+	@command -v govulncheck >/dev/null || go install golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck ./...
 
 gen-proto: ## Generate gRPC code from .proto files
 	protoc --go_out=. --go_opt=paths=source_relative \

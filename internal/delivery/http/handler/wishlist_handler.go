@@ -6,10 +6,11 @@ import (
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 )
 
 // WishlistHandler serves user wishlist add/remove/list (FR-7.1).
@@ -41,9 +42,9 @@ func (h *WishlistHandler) Add(c fiber.Ctx) error {
 }
 
 func (h *WishlistHandler) Remove(c fiber.Ctx) error {
-	productID, err := uuid.Parse(c.Params("product_id"))
+	productID, err := parseUUIDParam(c, "product_id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	userID, err := uuid.Parse(ctxutil.UserID(c))
 	if err != nil {

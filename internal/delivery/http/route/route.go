@@ -3,6 +3,7 @@ package route
 
 import (
 	"github.com/gofiber/fiber/v3"
+	"github.com/redis/go-redis/v9"
 
 	"erdinhrmwn/bangunin/internal/delivery/http/handler"
 	"erdinhrmwn/bangunin/internal/delivery/http/middleware"
@@ -12,7 +13,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, payout *handler.PayoutHandler, review *handler.ReviewHandler, wishlist *handler.WishlistHandler, banner *handler.BannerHandler, report *handler.ReportHandler, adminReport *handler.AdminReportHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, payout *handler.PayoutHandler, review *handler.ReviewHandler, wishlist *handler.WishlistHandler, banner *handler.BannerHandler, report *handler.ReportHandler, adminReport *handler.AdminReportHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository, redisClient *redis.Client) {
 	app.Get("/health", health.Check)
 
 	// No auth middleware — protected by X-Internal-Secret header check in the handler (FR-5.6).
@@ -20,7 +21,7 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 
 	api := app.Group("/api/v1")
 
-	authGroup := api.Group("/auth")
+	authGroup := api.Group("/auth", middleware.AuthRateLimit(redisClient))
 	authGroup.Post("/register", auth.Register)
 	authGroup.Post("/verify-email", auth.VerifyEmail)
 	authGroup.Post("/resend-otp", auth.ResendOTP)
