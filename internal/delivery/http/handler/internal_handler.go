@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gofiber/fiber/v3"
 
+	"erdinhrmwn/bangunin/internal/usecase/order"
 	"erdinhrmwn/bangunin/pkg/response"
 )
 
@@ -10,10 +11,11 @@ import (
 // (currently: services/payment's Xendit callback relay, FR-5.6).
 type InternalHandler struct {
 	internalSecret string
+	order          *order.Usecase
 }
 
-func NewInternalHandler(internalSecret string) *InternalHandler {
-	return &InternalHandler{internalSecret: internalSecret}
+func NewInternalHandler(internalSecret string, order *order.Usecase) *InternalHandler {
+	return &InternalHandler{internalSecret: internalSecret, order: order}
 }
 
 type paymentCallbackRequest struct {
@@ -34,9 +36,11 @@ func (h *InternalHandler) PaymentCallback(c fiber.Ctx) error {
 		return badRequest(c)
 	}
 
-	// TODO(sub-task 10): wire to usecase/order.Usecase.HandlePaidCallback
-	// (idempotent on xendit_invoice_id+status) once the order usecase lands.
-	_ = req
+	if req.Status == "PAID" {
+		if err := h.order.HandlePaidCallback(c.Context(), req.XenditInvoiceID); err != nil {
+			return errJSON(c, err)
+		}
+	}
 
 	return c.JSON(response.Success("Callback received", nil))
 }

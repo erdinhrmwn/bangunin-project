@@ -24,6 +24,7 @@ import (
 	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
 	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
 	notificationusecase "erdinhrmwn/bangunin/internal/usecase/notification"
+	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
 	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
@@ -87,6 +88,12 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	productVariantRepo := postgresrepo.NewProductVariantRepository(db)
 	productImageRepo := postgresrepo.NewProductImageRepository(db)
 	stockMovementRepo := postgresrepo.NewStockMovementRepository(db)
+	orderRepo := postgresrepo.NewOrderRepository(db)
+	orderHistoryRepo := postgresrepo.NewOrderStatusHistoryRepository(db)
+	shipmentRepo := postgresrepo.NewShipmentRepository(db)
+	checkoutGroupRepo := postgresrepo.NewCheckoutGroupRepository(db)
+	paymentRepo := postgresrepo.NewPaymentRepository(db)
+	stockReservationRepo := postgresrepo.NewStockReservationRepository(db)
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 
@@ -107,6 +114,10 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	productUC := productusecase.New(productRepo, productVariantRepo, productImageRepo, rdb)
 	inventoryUC := inventoryusecase.New(productVariantRepo, stockMovementRepo, supplierRepo, notificationRepo, rdb, cfg.Catalog.LowStockThreshold)
 	catalogUC := catalogusecase.New(productRepo, supplierRepo, rdb)
+	orderUC := orderusecase.New(
+		orderRepo, orderHistoryRepo, shipmentRepo, checkoutGroupRepo, paymentRepo, stockReservationRepo,
+		productVariantRepo, supplierRepo, userRepo, notificationRepo, auditLogRepo, enqueuer,
+	)
 
 	return &Container{
 		Config:        cfg,
@@ -128,7 +139,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Product:       handler.NewProductHandler(productUC, supplierRepo),
 		Inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
 		Catalog:       handler.NewCatalogHandler(catalogUC),
-		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret),
+		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, orderUC),
 	}, nil
 }
 
