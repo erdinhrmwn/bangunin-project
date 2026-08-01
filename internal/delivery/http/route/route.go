@@ -87,6 +87,7 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	supplierGroup.Get("/orders/:id", approvedSupplier, order.GetSupplier)
 	supplierGroup.Post("/orders/:id/process", approvedSupplier, order.Process)
 	supplierGroup.Post("/orders/:id/ship", approvedSupplier, order.Ship)
+	supplierGroup.Post("/orders/:id/deliver", approvedSupplier, order.Deliver)
 	supplierGroup.Get("/balance", approvedSupplier, payout.Balance)
 	supplierGroup.Post("/withdraws", approvedSupplier, payout.Request)
 	supplierGroup.Get("/withdraws", approvedSupplier, payout.ListMine)

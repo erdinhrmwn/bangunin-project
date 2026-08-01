@@ -137,6 +137,21 @@ func (h *OrderHandler) Ship(c fiber.Ctx) error {
 	return c.JSON(response.Success("Order shipped", nil))
 }
 
+func (h *OrderHandler) Deliver(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return badRequest(c)
+	}
+	supplierID, err := resolveSupplierID(c, h.suppliers)
+	if err != nil {
+		return errJSON(c, err)
+	}
+	if err := h.order.Deliver(c.Context(), id, supplierID); err != nil {
+		return errJSON(c, err)
+	}
+	return c.JSON(response.Success("Order delivered", nil))
+}
+
 func (h *OrderHandler) ListAdmin(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err == nil {
