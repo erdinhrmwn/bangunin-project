@@ -127,6 +127,46 @@ func (r *ProductVariantRepository) AdjustStock(ctx context.Context, variantID uu
 	return newStock, nil
 }
 
+// AdjustStockWithMovement applies delta and inserts m atomically in one
+// transaction. Same stock + delta >= 0 guard as AdjustStock.
+func (r *ProductVariantRepository) AdjustStockWithMovement(ctx context.Context, variantID uuid.UUID, delta int, m *entity.StockMovement) (int, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("postgres: begin adjust stock tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	const updateQ = `
+		UPDATE product_variants
+		SET stock = stock + $2
+		WHERE id = $1 AND stock + $2 >= 0
+		RETURNING stock
+	`
+	var newStock int
+	if err := tx.QueryRow(ctx, updateQ, variantID, delta).Scan(&newStock); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, errs.ErrConflict
+		}
+		return 0, fmt.Errorf("postgres: adjust stock: %w", err)
+	}
+
+	m.StockAfter = newStock
+	const insertQ = `
+		INSERT INTO stock_movements (id, variant_id, type, qty, ref_type, ref_id, stock_after, note)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING created_at
+	`
+	if err := tx.QueryRow(ctx, insertQ, m.ID, m.VariantID, m.Type, m.Qty, m.RefType, m.RefID, m.StockAfter, m.Note).
+		Scan(&m.CreatedAt); err != nil {
+		return 0, fmt.Errorf("postgres: create stock movement: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("postgres: commit adjust stock tx: %w", err)
+	}
+	return newStock, nil
+}
+
 const selectVariantCols = `
 	SELECT id, product_id, supplier_id, sku, name, unit, price, weight_gram,
 		length_cm, width_cm, height_cm, min_order_qty, stock, is_active, created_at

@@ -82,6 +82,65 @@ func (_c *MockProductVariantRepository_AdjustStock_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// AdjustStockWithMovement provides a mock function with given fields: ctx, variantID, delta, m
+func (_m *MockProductVariantRepository) AdjustStockWithMovement(ctx context.Context, variantID uuid.UUID, delta int, m *entity.StockMovement) (int, error) {
+	ret := _m.Called(ctx, variantID, delta, m)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AdjustStockWithMovement")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, int, *entity.StockMovement) (int, error)); ok {
+		return rf(ctx, variantID, delta, m)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, int, *entity.StockMovement) int); ok {
+		r0 = rf(ctx, variantID, delta, m)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, int, *entity.StockMovement) error); ok {
+		r1 = rf(ctx, variantID, delta, m)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductVariantRepository_AdjustStockWithMovement_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AdjustStockWithMovement'
+type MockProductVariantRepository_AdjustStockWithMovement_Call struct {
+	*mock.Call
+}
+
+// AdjustStockWithMovement is a helper method to define mock.On call
+//   - ctx context.Context
+//   - variantID uuid.UUID
+//   - delta int
+//   - m *entity.StockMovement
+func (_e *MockProductVariantRepository_Expecter) AdjustStockWithMovement(ctx interface{}, variantID interface{}, delta interface{}, m interface{}) *MockProductVariantRepository_AdjustStockWithMovement_Call {
+	return &MockProductVariantRepository_AdjustStockWithMovement_Call{Call: _e.mock.On("AdjustStockWithMovement", ctx, variantID, delta, m)}
+}
+
+func (_c *MockProductVariantRepository_AdjustStockWithMovement_Call) Run(run func(ctx context.Context, variantID uuid.UUID, delta int, m *entity.StockMovement)) *MockProductVariantRepository_AdjustStockWithMovement_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(int), args[3].(*entity.StockMovement))
+	})
+	return _c
+}
+
+func (_c *MockProductVariantRepository_AdjustStockWithMovement_Call) Return(_a0 int, _a1 error) *MockProductVariantRepository_AdjustStockWithMovement_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductVariantRepository_AdjustStockWithMovement_Call) RunAndReturn(run func(context.Context, uuid.UUID, int, *entity.StockMovement) (int, error)) *MockProductVariantRepository_AdjustStockWithMovement_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CountActiveByProductID provides a mock function with given fields: ctx, productID
 func (_m *MockProductVariantRepository) CountActiveByProductID(ctx context.Context, productID uuid.UUID) (int, error) {
 	ret := _m.Called(ctx, productID)

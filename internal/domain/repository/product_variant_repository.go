@@ -19,4 +19,8 @@ type ProductVariantRepository interface {
 	// Implementations must guard stock + delta >= 0 in the UPDATE's WHERE
 	// clause and return errs.ErrConflict when no row is updated.
 	AdjustStock(ctx context.Context, variantID uuid.UUID, delta int) (int, error)
+	// AdjustStockWithMovement applies delta and inserts m in the same DB
+	// transaction, setting m.StockAfter and m.CreatedAt on success. Same
+	// stock + delta >= 0 guard and errs.ErrConflict as AdjustStock.
+	AdjustStockWithMovement(ctx context.Context, variantID uuid.UUID, delta int, m *entity.StockMovement) (int, error)
 }
