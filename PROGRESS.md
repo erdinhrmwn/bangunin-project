@@ -87,11 +87,11 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 - [x] FR-4.10 Low-stock job
 
 ### Acceptance Criteria
-- [ ] AC-4.a Published product appears & is found in search
-- [ ] AC-4.b Publish validation (image, weight_gram, unique SKU)
-- [ ] AC-4.c Stock adjustment (409 when negative, movements correct)
-- [ ] AC-4.d Suspended supplier doesn't appear; cache invalidates fast
-- [ ] AC-4.e Search integration test with testcontainers
+- [x] AC-4.a Published product appears & is found in search
+- [x] AC-4.b Publish validation (image, weight_gram, unique SKU)
+- [x] AC-4.c Stock adjustment (409 when negative, movements correct)
+- [x] AC-4.d Suspended supplier doesn't appear; cache invalidates fast
+- [x] AC-4.e Search integration test with testcontainers
 
 ---
 
