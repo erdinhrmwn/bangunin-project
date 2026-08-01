@@ -144,7 +144,7 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 - [x] FR-7.1 Wishlist
 - [x] FR-7.2 Banner
 - [x] FR-7.3 Supplier report
-- [ ] FR-7.4 Admin report
+- [x] FR-7.4 Admin report
 - [ ] FR-7.5 Security hardening
 - [ ] FR-7.6 Observability (metrics + Grafana)
 - [ ] FR-7.7 Quality (coverage, CI, seed-demo)

@@ -259,3 +259,61 @@ func (r *OrderRepository) SalesPerDay(ctx context.Context, supplierID uuid.UUID,
 	}
 	return out, rows.Err()
 }
+
+func (r *OrderRepository) PlatformSummary(ctx context.Context, from, to time.Time) (float64, map[string]int, error) {
+	var gmv float64
+	const gmvQ = `
+		SELECT COALESCE(SUM(total), 0) FROM orders
+		WHERE status = 'completed' AND created_at BETWEEN $1 AND $2
+	`
+	if err := r.db.QueryRow(ctx, gmvQ, from, to).Scan(&gmv); err != nil {
+		return 0, nil, fmt.Errorf("postgres: platform summary gmv: %w", err)
+	}
+
+	const statusQ = `
+		SELECT status, COUNT(*) FROM orders
+		WHERE created_at BETWEEN $1 AND $2
+		GROUP BY status
+	`
+	rows, err := r.db.Query(ctx, statusQ, from, to)
+	if err != nil {
+		return 0, nil, fmt.Errorf("postgres: platform summary by status: %w", err)
+	}
+	defer rows.Close()
+
+	byStatus := map[string]int{}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return 0, nil, fmt.Errorf("postgres: scan platform summary status: %w", err)
+		}
+		byStatus[status] = count
+	}
+	return gmv, byStatus, rows.Err()
+}
+
+func (r *OrderRepository) PlatformSalesPerDay(ctx context.Context, from, to time.Time) ([]*entity.DailySales, error) {
+	const q = `
+		SELECT date_trunc('day', created_at), SUM(total), COUNT(*)
+		FROM orders
+		WHERE status = 'completed' AND created_at BETWEEN $1 AND $2
+		GROUP BY date_trunc('day', created_at)
+		ORDER BY date_trunc('day', created_at)
+	`
+	rows, err := r.db.Query(ctx, q, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: platform sales per day: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*entity.DailySales
+	for rows.Next() {
+		var d entity.DailySales
+		if err := rows.Scan(&d.Day, &d.GMV, &d.Orders); err != nil {
+			return nil, fmt.Errorf("postgres: scan platform daily sales: %w", err)
+		}
+		out = append(out, &d)
+	}
+	return out, rows.Err()
+}

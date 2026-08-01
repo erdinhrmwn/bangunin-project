@@ -551,6 +551,133 @@ func (_c *MockOrderRepository_ListItemsByOrderID_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// PlatformSalesPerDay provides a mock function with given fields: ctx, from, to
+func (_m *MockOrderRepository) PlatformSalesPerDay(ctx context.Context, from time.Time, to time.Time) ([]*entity.DailySales, error) {
+	ret := _m.Called(ctx, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PlatformSalesPerDay")
+	}
+
+	var r0 []*entity.DailySales
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) ([]*entity.DailySales, error)); ok {
+		return rf(ctx, from, to)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) []*entity.DailySales); ok {
+		r0 = rf(ctx, from, to)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*entity.DailySales)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, from, to)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrderRepository_PlatformSalesPerDay_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PlatformSalesPerDay'
+type MockOrderRepository_PlatformSalesPerDay_Call struct {
+	*mock.Call
+}
+
+// PlatformSalesPerDay is a helper method to define mock.On call
+//   - ctx context.Context
+//   - from time.Time
+//   - to time.Time
+func (_e *MockOrderRepository_Expecter) PlatformSalesPerDay(ctx interface{}, from interface{}, to interface{}) *MockOrderRepository_PlatformSalesPerDay_Call {
+	return &MockOrderRepository_PlatformSalesPerDay_Call{Call: _e.mock.On("PlatformSalesPerDay", ctx, from, to)}
+}
+
+func (_c *MockOrderRepository_PlatformSalesPerDay_Call) Run(run func(ctx context.Context, from time.Time, to time.Time)) *MockOrderRepository_PlatformSalesPerDay_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOrderRepository_PlatformSalesPerDay_Call) Return(_a0 []*entity.DailySales, _a1 error) *MockOrderRepository_PlatformSalesPerDay_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrderRepository_PlatformSalesPerDay_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) ([]*entity.DailySales, error)) *MockOrderRepository_PlatformSalesPerDay_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// PlatformSummary provides a mock function with given fields: ctx, from, to
+func (_m *MockOrderRepository) PlatformSummary(ctx context.Context, from time.Time, to time.Time) (float64, map[string]int, error) {
+	ret := _m.Called(ctx, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PlatformSummary")
+	}
+
+	var r0 float64
+	var r1 map[string]int
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) (float64, map[string]int, error)); ok {
+		return rf(ctx, from, to)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) float64); ok {
+		r0 = rf(ctx, from, to)
+	} else {
+		r0 = ret.Get(0).(float64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) map[string]int); ok {
+		r1 = rf(ctx, from, to)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(map[string]int)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, time.Time, time.Time) error); ok {
+		r2 = rf(ctx, from, to)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOrderRepository_PlatformSummary_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PlatformSummary'
+type MockOrderRepository_PlatformSummary_Call struct {
+	*mock.Call
+}
+
+// PlatformSummary is a helper method to define mock.On call
+//   - ctx context.Context
+//   - from time.Time
+//   - to time.Time
+func (_e *MockOrderRepository_Expecter) PlatformSummary(ctx interface{}, from interface{}, to interface{}) *MockOrderRepository_PlatformSummary_Call {
+	return &MockOrderRepository_PlatformSummary_Call{Call: _e.mock.On("PlatformSummary", ctx, from, to)}
+}
+
+func (_c *MockOrderRepository_PlatformSummary_Call) Run(run func(ctx context.Context, from time.Time, to time.Time)) *MockOrderRepository_PlatformSummary_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockOrderRepository_PlatformSummary_Call) Return(gmv float64, byStatus map[string]int, err error) *MockOrderRepository_PlatformSummary_Call {
+	_c.Call.Return(gmv, byStatus, err)
+	return _c
+}
+
+func (_c *MockOrderRepository_PlatformSummary_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) (float64, map[string]int, error)) *MockOrderRepository_PlatformSummary_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SalesPerDay provides a mock function with given fields: ctx, supplierID, from, to
 func (_m *MockOrderRepository) SalesPerDay(ctx context.Context, supplierID uuid.UUID, from time.Time, to time.Time) ([]*entity.DailySales, error) {
 	ret := _m.Called(ctx, supplierID, from, to)

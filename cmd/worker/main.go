@@ -199,6 +199,78 @@ func main() {
 		return notifier.SendEmail(ctx, usr.Email, title, body)
 	})
 
+	adminReportUC := reportusecase.NewAdmin(
+		postgresrepo.NewOrderRepository(db),
+		postgresrepo.NewLedgerEntryRepository(db),
+		supplierRepo,
+		userRepo,
+		enqueuer,
+	)
+	mux.HandleFunc(queue.TaskAdminReportGenerate, func(ctx context.Context, t *asynq.Task) error {
+		var p queue.AdminReportGeneratePayload
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("report:generate-admin: unmarshal payload: %w", err)
+		}
+		summary, err := adminReportUC.GetSummary(ctx, p.From, p.To)
+		if err != nil {
+			return fmt.Errorf("report:generate-admin: get summary: %w", err)
+		}
+
+		var buf bytes.Buffer
+		w := csv.NewWriter(&buf)
+		_ = w.Write([]string{"GMV", "Commission", "ActiveSuppliers", "NewUsers"})
+		_ = w.Write([]string{
+			fmt.Sprintf("%.2f", summary.GMV), fmt.Sprintf("%.2f", summary.Commission),
+			fmt.Sprintf("%d", summary.ActiveSuppliers), fmt.Sprintf("%d", summary.NewUsers),
+		})
+		_ = w.Write([]string{})
+		_ = w.Write([]string{"Status", "Count"})
+		for status, count := range summary.OrdersByStatus {
+			_ = w.Write([]string{status, fmt.Sprintf("%d", count)})
+		}
+		_ = w.Write([]string{})
+		_ = w.Write([]string{"Day", "GMV", "Orders"})
+		for _, d := range summary.SalesPerDay {
+			_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
+		}
+		w.Flush()
+		if err := w.Error(); err != nil {
+			return fmt.Errorf("report:generate-admin: write csv: %w", err)
+		}
+		data := buf.Bytes()
+
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("report:generate-admin: generate id: %w", err)
+		}
+		key := fmt.Sprintf("reports/admin/%s.csv", id)
+		if _, err := mediaStorage.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), "text/csv"); err != nil {
+			return fmt.Errorf("report:generate-admin: upload %s: %w", key, err)
+		}
+		downloadURL, err := mediaStorage.PresignedURL(ctx, key, 24*time.Hour)
+		if err != nil {
+			return fmt.Errorf("report:generate-admin: presign %s: %w", key, err)
+		}
+
+		usr, err := userRepo.FindByID(ctx, p.AdminID)
+		if err != nil {
+			return fmt.Errorf("report:generate-admin: find admin: %w", err)
+		}
+
+		title := "Platform report ready"
+		body := fmt.Sprintf("Your platform report is ready. Download it here (valid 24h): %s", downloadURL)
+		notifID, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("report:generate-admin: generate notification id: %w", err)
+		}
+		if err := notificationRepo.Create(ctx, &entity.Notification{
+			ID: notifID, UserID: usr.ID, Type: entity.NotificationTypeSystem, Title: title, Body: body,
+		}); err != nil {
+			return fmt.Errorf("report:generate-admin: create notification: %w", err)
+		}
+		return notifier.SendEmail(ctx, usr.Email, title, body)
+	})
+
 	scheduler := asynq.NewScheduler(redisOpt, nil)
 	if _, err := scheduler.Register("0 2 * * *", asynq.NewTask(queue.TaskLowStockCheck, nil)); err != nil {
 		fatal(err)

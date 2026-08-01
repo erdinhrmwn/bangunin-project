@@ -10,4 +10,7 @@ import (
 // and notify the supplier with a download link. Implemented by infra/queue.Enqueuer.
 type ReportEnqueuer interface {
 	EnqueueReportGenerate(supplierID uuid.UUID, from, to time.Time) error
+	// EnqueueAdminReportGenerate queues a report:generate-admin job (FR-7.4)
+	// to build a platform-wide CSV export and notify the requesting admin.
+	EnqueueAdminReportGenerate(adminID uuid.UUID, from, to time.Time) error
 }

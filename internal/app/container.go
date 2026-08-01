@@ -21,6 +21,7 @@ import (
 	redisrepo "erdinhrmwn/bangunin/internal/repository/redis"
 	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
 	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
+	bannerusecase "erdinhrmwn/bangunin/internal/usecase/banner"
 	cartusecase "erdinhrmwn/bangunin/internal/usecase/cart"
 	catalogusecase "erdinhrmwn/bangunin/internal/usecase/catalog"
 	categoryusecase "erdinhrmwn/bangunin/internal/usecase/category"
@@ -33,7 +34,6 @@ import (
 	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
 	reportusecase "erdinhrmwn/bangunin/internal/usecase/report"
 	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
-	bannerusecase "erdinhrmwn/bangunin/internal/usecase/banner"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
@@ -77,6 +77,7 @@ type Container struct {
 	Wishlist      *handler.WishlistHandler
 	Banner        *handler.BannerHandler
 	Report        *handler.ReportHandler
+	AdminReport   *handler.AdminReportHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -163,6 +164,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	wishlistUC := wishlistusecase.New(wishlistRepo, productRepo)
 	bannerUC := bannerusecase.New(bannerRepo, rdb)
 	reportUC := reportusecase.New(orderRepo, enqueuer)
+	adminReportUC := reportusecase.NewAdmin(orderRepo, ledgerRepo, supplierRepo, userRepo, enqueuer)
 	checkoutUC := checkoutusecase.New(
 		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
 		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
@@ -199,6 +201,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Wishlist:      handler.NewWishlistHandler(wishlistUC),
 		Banner:        handler.NewBannerHandler(bannerUC),
 		Report:        handler.NewReportHandler(reportUC, supplierRepo),
+		AdminReport:   handler.NewAdminReportHandler(adminReportUC),
 	}, nil
 }
 

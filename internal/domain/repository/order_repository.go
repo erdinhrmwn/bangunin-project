@@ -34,4 +34,11 @@ type OrderRepository interface {
 	// SalesPerDay returns a daily GMV/order-count series for a supplier's
 	// completed orders within [from, to] (FR-7.3).
 	SalesPerDay(ctx context.Context, supplierID uuid.UUID, from, to time.Time) ([]*entity.DailySales, error)
+
+	// PlatformSummary returns GMV (sum of Total for completed orders) and a
+	// per-status order count, platform-wide, within [from, to] (FR-7.4).
+	PlatformSummary(ctx context.Context, from, to time.Time) (gmv float64, byStatus map[string]int, err error)
+	// PlatformSalesPerDay returns a daily GMV/order-count series across all
+	// suppliers' completed orders within [from, to] (FR-7.4).
+	PlatformSalesPerDay(ctx context.Context, from, to time.Time) ([]*entity.DailySales, error)
 }

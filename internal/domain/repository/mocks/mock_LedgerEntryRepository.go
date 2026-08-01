@@ -8,6 +8,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	time "time"
+
 	uuid "github.com/google/uuid"
 )
 
@@ -135,6 +137,65 @@ func (_c *MockLedgerEntryRepository_ListBySupplier_Call) Return(_a0 []*entity.Le
 }
 
 func (_c *MockLedgerEntryRepository_ListBySupplier_Call) RunAndReturn(run func(context.Context, uuid.UUID, int, int) ([]*entity.LedgerEntry, int, error)) *MockLedgerEntryRepository_ListBySupplier_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SumByType provides a mock function with given fields: ctx, entryType, from, to
+func (_m *MockLedgerEntryRepository) SumByType(ctx context.Context, entryType string, from time.Time, to time.Time) (float64, error) {
+	ret := _m.Called(ctx, entryType, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SumByType")
+	}
+
+	var r0 float64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time) (float64, error)); ok {
+		return rf(ctx, entryType, from, to)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time) float64); ok {
+		r0 = rf(ctx, entryType, from, to)
+	} else {
+		r0 = ret.Get(0).(float64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, entryType, from, to)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockLedgerEntryRepository_SumByType_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SumByType'
+type MockLedgerEntryRepository_SumByType_Call struct {
+	*mock.Call
+}
+
+// SumByType is a helper method to define mock.On call
+//   - ctx context.Context
+//   - entryType string
+//   - from time.Time
+//   - to time.Time
+func (_e *MockLedgerEntryRepository_Expecter) SumByType(ctx interface{}, entryType interface{}, from interface{}, to interface{}) *MockLedgerEntryRepository_SumByType_Call {
+	return &MockLedgerEntryRepository_SumByType_Call{Call: _e.mock.On("SumByType", ctx, entryType, from, to)}
+}
+
+func (_c *MockLedgerEntryRepository_SumByType_Call) Run(run func(ctx context.Context, entryType string, from time.Time, to time.Time)) *MockLedgerEntryRepository_SumByType_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockLedgerEntryRepository_SumByType_Call) Return(_a0 float64, _a1 error) *MockLedgerEntryRepository_SumByType_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockLedgerEntryRepository_SumByType_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time) (float64, error)) *MockLedgerEntryRepository_SumByType_Call {
 	_c.Call.Return(run)
 	return _c
 }

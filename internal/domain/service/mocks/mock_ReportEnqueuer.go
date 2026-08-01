@@ -23,6 +23,54 @@ func (_m *MockReportEnqueuer) EXPECT() *MockReportEnqueuer_Expecter {
 	return &MockReportEnqueuer_Expecter{mock: &_m.Mock}
 }
 
+// EnqueueAdminReportGenerate provides a mock function with given fields: adminID, from, to
+func (_m *MockReportEnqueuer) EnqueueAdminReportGenerate(adminID uuid.UUID, from time.Time, to time.Time) error {
+	ret := _m.Called(adminID, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EnqueueAdminReportGenerate")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID, time.Time, time.Time) error); ok {
+		r0 = rf(adminID, from, to)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockReportEnqueuer_EnqueueAdminReportGenerate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EnqueueAdminReportGenerate'
+type MockReportEnqueuer_EnqueueAdminReportGenerate_Call struct {
+	*mock.Call
+}
+
+// EnqueueAdminReportGenerate is a helper method to define mock.On call
+//   - adminID uuid.UUID
+//   - from time.Time
+//   - to time.Time
+func (_e *MockReportEnqueuer_Expecter) EnqueueAdminReportGenerate(adminID interface{}, from interface{}, to interface{}) *MockReportEnqueuer_EnqueueAdminReportGenerate_Call {
+	return &MockReportEnqueuer_EnqueueAdminReportGenerate_Call{Call: _e.mock.On("EnqueueAdminReportGenerate", adminID, from, to)}
+}
+
+func (_c *MockReportEnqueuer_EnqueueAdminReportGenerate_Call) Run(run func(adminID uuid.UUID, from time.Time, to time.Time)) *MockReportEnqueuer_EnqueueAdminReportGenerate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(uuid.UUID), args[1].(time.Time), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockReportEnqueuer_EnqueueAdminReportGenerate_Call) Return(_a0 error) *MockReportEnqueuer_EnqueueAdminReportGenerate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockReportEnqueuer_EnqueueAdminReportGenerate_Call) RunAndReturn(run func(uuid.UUID, time.Time, time.Time) error) *MockReportEnqueuer_EnqueueAdminReportGenerate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // EnqueueReportGenerate provides a mock function with given fields: supplierID, from, to
 func (_m *MockReportEnqueuer) EnqueueReportGenerate(supplierID uuid.UUID, from time.Time, to time.Time) error {
 	ret := _m.Called(supplierID, from, to)
