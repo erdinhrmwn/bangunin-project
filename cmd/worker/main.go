@@ -18,6 +18,7 @@ import (
 	"erdinhrmwn/bangunin/internal/infra/storage"
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
+	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
 	"erdinhrmwn/bangunin/pkg/imageresize"
 	"erdinhrmwn/bangunin/pkg/logger"
 )
@@ -95,8 +96,37 @@ func main() {
 		return inventoryUC.CheckLowStock(ctx)
 	})
 
+	enqueuer := queue.NewEnqueuer(redisOpt)
+	defer func() { _ = enqueuer.Close() }()
+	orderUC := orderusecase.New(
+		postgresrepo.NewOrderRepository(db),
+		postgresrepo.NewOrderStatusHistoryRepository(db),
+		postgresrepo.NewShipmentRepository(db),
+		postgresrepo.NewCheckoutGroupRepository(db),
+		postgresrepo.NewPaymentRepository(db),
+		postgresrepo.NewStockReservationRepository(db),
+		postgresrepo.NewProductVariantRepository(db),
+		postgresrepo.NewSupplierRepository(db),
+		postgresrepo.NewUserRepository(db),
+		postgresrepo.NewNotificationRepository(db),
+		postgresrepo.NewAuditLogRepository(db),
+		enqueuer,
+	)
+	mux.HandleFunc(queue.TaskOrderExpire, func(ctx context.Context, t *asynq.Task) error {
+		return orderUC.HandleExpire(ctx)
+	})
+	mux.HandleFunc(queue.TaskOrderAutocomplete, func(ctx context.Context, t *asynq.Task) error {
+		return orderUC.HandleAutocomplete(ctx)
+	})
+
 	scheduler := asynq.NewScheduler(redisOpt, nil)
 	if _, err := scheduler.Register("0 2 * * *", asynq.NewTask(queue.TaskLowStockCheck, nil)); err != nil {
+		fatal(err)
+	}
+	if _, err := scheduler.Register("* * * * *", asynq.NewTask(queue.TaskOrderExpire, nil)); err != nil {
+		fatal(err)
+	}
+	if _, err := scheduler.Register("0 3 * * *", asynq.NewTask(queue.TaskOrderAutocomplete, nil)); err != nil {
 		fatal(err)
 	}
 	if err := scheduler.Start(); err != nil {

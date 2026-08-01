@@ -44,6 +44,24 @@ services:
       timeout: 5s
       retries: 5
 
+  payment-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.payment
+    env_file:
+      - ../.env
+    environment:
+      GRPC_ADDR: ":50051"
+      HTTP_ADDR: ":8081"
+      MONOLITH_CALLBACK_URL: "http://api:8080/internal/payments/callback"
+      INTERNAL_SECRET: "${APP_PAYMENT_INTERNAL_SECRET}"
+      XENDIT_SECRET_KEY: "${APP_XENDIT_SECRET_KEY}"
+      XENDIT_CALLBACK_TOKEN: "${APP_XENDIT_CALLBACK_TOKEN}"
+      MOCK: "${APP_XENDIT_MOCK:-true}"
+    ports:
+      - "50051:50051"
+      - "8081:8081"
+
   api:
     build:
       context: ..
@@ -54,6 +72,7 @@ services:
       APP_DB_DSN: postgres://bangunin:bangunin@postgres:5432/bangunin?sslmode=disable
       APP_REDIS_ADDR: redis:6379
       APP_R2_ENDPOINT: minio:9000
+      APP_PAYMENT_GRPC_ADDR: "payment-service:50051"
     ports:
       - "8080:8080"
     depends_on:

@@ -75,7 +75,9 @@ tidy: ## Tidy go.mod/go.sum
 	go mod tidy
 
 gen-proto: ## Generate gRPC code from .proto files
-	@echo "🧩 gen-proto: no .proto files yet (added in Phase 5)"
+	protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		proto/payment/v1/payment.proto
 
 ## Docker
 docker-up: ## Start local infra (postgres, redis, minio)

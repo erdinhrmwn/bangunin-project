@@ -16,8 +16,18 @@ packages:
       ProductVariantRepository:
       ProductImageRepository:
       StockMovementRepository:
+      UserAddressRepository:
+      CartRepository:
+      CheckoutGroupRepository:
+      PaymentRepository:
+      OrderRepository:
+      OrderStatusHistoryRepository:
+      ShipmentRepository:
+      StockReservationRepository:
   erdinhrmwn/bangunin/internal/domain/service:
     interfaces:
       EmailEnqueuer:
       StorageService:
       MediaEnqueuer:
+      PaymentGateway:
+      ShippingGateway:

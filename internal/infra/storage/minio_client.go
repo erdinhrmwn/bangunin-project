@@ -38,8 +38,13 @@ func New(ctx context.Context, cfg config.R2Config) (*MinIOStorage, error) {
 		return nil, fmt.Errorf("storage: check bucket: %w", err)
 	}
 	if !exists {
+		// ponytail: api/worker start concurrently and race on first-boot bucket
+		// creation; the loser gets BucketAlreadyOwnedByYou, which isn't a real error.
 		if err := client.MakeBucket(ctx, cfg.Bucket, minio.MakeBucketOptions{}); err != nil {
-			return nil, fmt.Errorf("storage: create bucket: %w", err)
+			code := minio.ToErrorResponse(err).Code
+			if code != "BucketAlreadyOwnedByYou" && code != "BucketAlreadyExists" {
+				return nil, fmt.Errorf("storage: create bucket: %w", err)
+			}
 		}
 	}
 
