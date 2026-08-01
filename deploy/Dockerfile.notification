@@ -1,0 +1,12 @@
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY services/notification/go.mod services/notification/go.sum ./services/notification/
+RUN cd services/notification && go mod download
+COPY . .
+RUN cd services/notification && CGO_ENABLED=0 go build -o /out/notification .
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=build /out/notification /usr/local/bin/notification
+ENTRYPOINT ["/usr/local/bin/notification"]

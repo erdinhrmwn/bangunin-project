@@ -62,6 +62,22 @@ services:
       - "50051:50051"
       - "8081:8081"
 
+  notification-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.notification
+    env_file:
+      - ../.env
+    environment:
+      GRPC_ADDR: ":50052"
+      MAILJET_API_KEY: "${APP_MAILJET_API_KEY}"
+      MAILJET_SECRET: "${APP_MAILJET_SECRET}"
+      MAILJET_FROM_ADDR: "${APP_MAILJET_FROM_ADDR:-no-reply@bangunin.local}"
+      MAILJET_FROM_NAME: "${APP_MAILJET_FROM_NAME:-Bangunin}"
+      MOCK: "${APP_MAILJET_MOCK:-true}"
+    ports:
+      - "50052:50052"
+
   api:
     build:
       context: ..
@@ -93,6 +109,7 @@ services:
       APP_DB_DSN: postgres://bangunin:bangunin@postgres:5432/bangunin?sslmode=disable
       APP_REDIS_ADDR: redis:6379
       APP_R2_ENDPOINT: minio:9000
+      APP_NOTIFICATION_GRPC_ADDR: "notification-service:50052"
     depends_on:
       postgres:
         condition: service_healthy
