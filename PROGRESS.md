@@ -98,17 +98,17 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 ## PHASE 5 — Core Transactions
 
 ### Functional Requirements
-- [ ] FR-5.1 Cart
-- [ ] FR-5.2 RajaOngkir client (ShippingGateway + mock mode)
-- [ ] FR-5.3 Checkout preview
-- [ ] FR-5.4 Checkout confirm (lock + TX + reservation)
-- [ ] FR-5.5 Payment-service (services/payment, gRPC, Xendit)
-- [ ] FR-5.6 Paid callback (idempotent)
-- [ ] FR-5.7 order:expire job
-- [ ] FR-5.8 Order state machine
-- [ ] FR-5.9 Shipment
-- [ ] FR-5.10 Order listing (user/supplier/admin)
-- [ ] FR-5.11 order:autocomplete job
+- [x] FR-5.1 Cart
+- [x] FR-5.2 RajaOngkir client (ShippingGateway + mock mode)
+- [x] FR-5.3 Checkout preview
+- [x] FR-5.4 Checkout confirm (lock + TX + reservation)
+- [x] FR-5.5 Payment-service (services/payment, gRPC, Xendit)
+- [x] FR-5.6 Paid callback (idempotent)
+- [x] FR-5.7 order:expire job
+- [x] FR-5.8 Order state machine
+- [x] FR-5.9 Shipment
+- [x] FR-5.10 Order listing (user/supplier/admin)
+- [x] FR-5.11 order:autocomplete job
 
 ### Acceptance Criteria
 - [ ] AC-5.a E2E multi-supplier checkout→paid→shipped→delivered→completed
