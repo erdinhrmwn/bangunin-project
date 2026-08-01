@@ -12,7 +12,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
 	app.Get("/health", health.Check)
 
 	api := app.Group("/api/v1")
@@ -59,4 +59,8 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 
 	mediaGroup := api.Group("/media", authMw)
 	mediaGroup.Post("/upload", media.Upload)
+
+	notificationGroup := api.Group("/user/notifications", authMw)
+	notificationGroup.Get("/", notification.List)
+	notificationGroup.Post("/:id/read", notification.MarkRead)
 }

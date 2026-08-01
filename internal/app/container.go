@@ -20,6 +20,7 @@ import (
 	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
 	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
 	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
+	notificationusecase "erdinhrmwn/bangunin/internal/usecase/notification"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	"erdinhrmwn/bangunin/pkg/jwt"
@@ -46,6 +47,7 @@ type Container struct {
 	Supplier      *handler.SupplierHandler
 	Media         *handler.MediaHandler
 	AdminSupplier *handler.AdminSupplierHandler
+	Notification  *handler.NotificationHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -86,6 +88,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	supplierUC := supplierusecase.New(supplierRepo, supplierDocRepo, supplierBankRepo)
 	mediaUC := mediausecase.New(mediaStorage, enqueuer)
 	adminSupplierUC := adminsupplierusecase.New(supplierRepo, supplierDocRepo, userRepo, auditLogRepo, notificationRepo, enqueuer)
+	notificationUC := notificationusecase.New(notificationRepo)
 
 	return &Container{
 		Config:        cfg,
@@ -102,6 +105,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Supplier:      handler.NewSupplierHandler(supplierUC),
 		Media:         handler.NewMediaHandler(mediaUC),
 		AdminSupplier: handler.NewAdminSupplierHandler(adminSupplierUC),
+		Notification:  handler.NewNotificationHandler(notificationUC),
 	}, nil
 }
 
