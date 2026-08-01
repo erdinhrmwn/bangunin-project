@@ -35,7 +35,7 @@ func (r *UserRepository) Create(ctx context.Context, u *entity.User) error {
 
 func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.User, error) {
 	const q = `
-		SELECT id, role_id, name, email, password_hash, phone, status, email_verified_at, created_at
+		SELECT id, role_id, name, email, password_hash, phone, status, email_verified_at, email_marketing, created_at
 		FROM users WHERE id = $1
 	`
 	return r.scanOne(ctx, q, id)
@@ -43,7 +43,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.Us
 
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
 	const q = `
-		SELECT id, role_id, name, email, password_hash, phone, status, email_verified_at, created_at
+		SELECT id, role_id, name, email, password_hash, phone, status, email_verified_at, email_marketing, created_at
 		FROM users WHERE email = $1
 	`
 	return r.scanOne(ctx, q, email)
@@ -52,10 +52,10 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*entity
 func (r *UserRepository) Update(ctx context.Context, u *entity.User) error {
 	const q = `
 		UPDATE users
-		SET name = $2, phone = $3, password_hash = $4, status = $5, email_verified_at = $6
+		SET name = $2, phone = $3, password_hash = $4, status = $5, email_verified_at = $6, email_marketing = $7
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, q, u.ID, u.Name, u.Phone, u.PasswordHash, u.Status, u.EmailVerifiedAt)
+	_, err := r.db.Exec(ctx, q, u.ID, u.Name, u.Phone, u.PasswordHash, u.Status, u.EmailVerifiedAt, u.EmailMarketing)
 	if err != nil {
 		return fmt.Errorf("postgres: update user: %w", err)
 	}
@@ -66,7 +66,7 @@ func (r *UserRepository) scanOne(ctx context.Context, query string, arg any) (*e
 	var u entity.User
 	err := r.db.QueryRow(ctx, query, arg).Scan(
 		&u.ID, &u.RoleID, &u.Name, &u.Email, &u.PasswordHash, &u.Phone, &u.Status,
-		&u.EmailVerifiedAt, &u.CreatedAt,
+		&u.EmailVerifiedAt, &u.EmailMarketing, &u.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errs.ErrNotFound

@@ -8,6 +8,7 @@ option go_package = "erdinhrmwn/bangunin/proto/payment/v1;paymentv1";
 // and consumed by the monolith via internal/infra/grpcclient (FR-5.5).
 service PaymentService {
   rpc CreateInvoice(CreateInvoiceRequest) returns (CreateInvoiceResponse);
+  rpc Disburse(DisburseRequest) returns (DisburseResponse);
 }
 
 message CreateInvoiceRequest {
@@ -19,4 +20,16 @@ message CreateInvoiceRequest {
 message CreateInvoiceResponse {
   string invoice_id = 1;
   string invoice_url = 2;
+}
+
+message DisburseRequest {
+  string withdraw_id = 1;
+  double amount = 2;
+  string bank_code = 3;
+  string account_number = 4;
+  string account_name = 5;
+}
+
+message DisburseResponse {
+  string disbursement_id = 1;
 }

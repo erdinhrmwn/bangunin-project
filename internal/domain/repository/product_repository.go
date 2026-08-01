@@ -49,6 +49,9 @@ type ProductSummary struct {
 type ProductRepository interface {
 	Create(ctx context.Context, p *entity.Product) error
 	Update(ctx context.Context, p *entity.Product) error
+	// UpdateRating recomputes the denormalized rating fields (FR-6.5) —
+	// separate from Update so review creation doesn't touch unrelated columns.
+	UpdateRating(ctx context.Context, productID uuid.UUID, avg float64, count int) error
 	FindByID(ctx context.Context, id uuid.UUID) (*entity.Product, error)
 	FindBySlug(ctx context.Context, slug string) (*entity.Product, error)
 	FindBySupplierAndID(ctx context.Context, supplierID, id uuid.UUID) (*entity.Product, error)

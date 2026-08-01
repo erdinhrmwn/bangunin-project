@@ -10,6 +10,10 @@ type ChangePasswordRequest struct {
 	NewPassword string `json:"new_password" validate:"required,password"`
 }
 
+type UpdateNotificationSettingsRequest struct {
+	EmailMarketing *bool `json:"email_marketing" validate:"required"`
+}
+
 type UserResponse struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
@@ -18,4 +22,5 @@ type UserResponse struct {
 	Role            string  `json:"role"`
 	Status          string  `json:"status"`
 	EmailVerifiedAt *string `json:"email_verified_at"`
+	EmailMarketing  bool    `json:"email_marketing"`
 }

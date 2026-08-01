@@ -23,3 +23,12 @@ func (s *paymentServer) CreateInvoice(ctx context.Context, req *paymentv1.Create
 	}
 	return &paymentv1.CreateInvoiceResponse{InvoiceId: id, InvoiceUrl: url}, nil
 }
+
+func (s *paymentServer) Disburse(ctx context.Context, req *paymentv1.DisburseRequest) (*paymentv1.DisburseResponse, error) {
+	id, err := s.xendit.Disburse(ctx, req.WithdrawId, req.Amount, req.BankCode, req.AccountNumber, req.AccountName)
+	if err != nil {
+		s.log.Error().Err(err).Str("withdraw_id", req.WithdrawId).Msg("disburse failed")
+		return nil, fmt.Errorf("disburse: %w", err)
+	}
+	return &paymentv1.DisburseResponse{DisbursementId: id}, nil
+}

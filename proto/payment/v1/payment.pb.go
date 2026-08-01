@@ -133,6 +133,126 @@ func (x *CreateInvoiceResponse) GetInvoiceUrl() string {
 	return ""
 }
 
+type DisburseRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WithdrawId    string                 `protobuf:"bytes,1,opt,name=withdraw_id,json=withdrawId,proto3" json:"withdraw_id,omitempty"`
+	Amount        float64                `protobuf:"fixed64,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	BankCode      string                 `protobuf:"bytes,3,opt,name=bank_code,json=bankCode,proto3" json:"bank_code,omitempty"`
+	AccountNumber string                 `protobuf:"bytes,4,opt,name=account_number,json=accountNumber,proto3" json:"account_number,omitempty"`
+	AccountName   string                 `protobuf:"bytes,5,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisburseRequest) Reset() {
+	*x = DisburseRequest{}
+	mi := &file_proto_payment_v1_payment_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisburseRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisburseRequest) ProtoMessage() {}
+
+func (x *DisburseRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_payment_v1_payment_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisburseRequest.ProtoReflect.Descriptor instead.
+func (*DisburseRequest) Descriptor() ([]byte, []int) {
+	return file_proto_payment_v1_payment_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DisburseRequest) GetWithdrawId() string {
+	if x != nil {
+		return x.WithdrawId
+	}
+	return ""
+}
+
+func (x *DisburseRequest) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *DisburseRequest) GetBankCode() string {
+	if x != nil {
+		return x.BankCode
+	}
+	return ""
+}
+
+func (x *DisburseRequest) GetAccountNumber() string {
+	if x != nil {
+		return x.AccountNumber
+	}
+	return ""
+}
+
+func (x *DisburseRequest) GetAccountName() string {
+	if x != nil {
+		return x.AccountName
+	}
+	return ""
+}
+
+type DisburseResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	DisbursementId string                 `protobuf:"bytes,1,opt,name=disbursement_id,json=disbursementId,proto3" json:"disbursement_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *DisburseResponse) Reset() {
+	*x = DisburseResponse{}
+	mi := &file_proto_payment_v1_payment_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisburseResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisburseResponse) ProtoMessage() {}
+
+func (x *DisburseResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_payment_v1_payment_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisburseResponse.ProtoReflect.Descriptor instead.
+func (*DisburseResponse) Descriptor() ([]byte, []int) {
+	return file_proto_payment_v1_payment_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DisburseResponse) GetDisbursementId() string {
+	if x != nil {
+		return x.DisbursementId
+	}
+	return ""
+}
+
 var File_proto_payment_v1_payment_proto protoreflect.FileDescriptor
 
 const file_proto_payment_v1_payment_proto_rawDesc = "" +
@@ -147,9 +267,19 @@ const file_proto_payment_v1_payment_proto_rawDesc = "" +
 	"\n" +
 	"invoice_id\x18\x01 \x01(\tR\tinvoiceId\x12\x1f\n" +
 	"\vinvoice_url\x18\x02 \x01(\tR\n" +
-	"invoiceUrl2f\n" +
+	"invoiceUrl\"\xb1\x01\n" +
+	"\x0fDisburseRequest\x12\x1f\n" +
+	"\vwithdraw_id\x18\x01 \x01(\tR\n" +
+	"withdrawId\x12\x16\n" +
+	"\x06amount\x18\x02 \x01(\x01R\x06amount\x12\x1b\n" +
+	"\tbank_code\x18\x03 \x01(\tR\bbankCode\x12%\n" +
+	"\x0eaccount_number\x18\x04 \x01(\tR\raccountNumber\x12!\n" +
+	"\faccount_name\x18\x05 \x01(\tR\vaccountName\";\n" +
+	"\x10DisburseResponse\x12'\n" +
+	"\x0fdisbursement_id\x18\x01 \x01(\tR\x0edisbursementId2\xad\x01\n" +
 	"\x0ePaymentService\x12T\n" +
-	"\rCreateInvoice\x12 .payment.v1.CreateInvoiceRequest\x1a!.payment.v1.CreateInvoiceResponseB0Z.erdinhrmwn/bangunin/proto/payment/v1;paymentv1b\x06proto3"
+	"\rCreateInvoice\x12 .payment.v1.CreateInvoiceRequest\x1a!.payment.v1.CreateInvoiceResponse\x12E\n" +
+	"\bDisburse\x12\x1b.payment.v1.DisburseRequest\x1a\x1c.payment.v1.DisburseResponseB0Z.erdinhrmwn/bangunin/proto/payment/v1;paymentv1b\x06proto3"
 
 var (
 	file_proto_payment_v1_payment_proto_rawDescOnce sync.Once
@@ -163,16 +293,20 @@ func file_proto_payment_v1_payment_proto_rawDescGZIP() []byte {
 	return file_proto_payment_v1_payment_proto_rawDescData
 }
 
-var file_proto_payment_v1_payment_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_proto_payment_v1_payment_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_proto_payment_v1_payment_proto_goTypes = []any{
 	(*CreateInvoiceRequest)(nil),  // 0: payment.v1.CreateInvoiceRequest
 	(*CreateInvoiceResponse)(nil), // 1: payment.v1.CreateInvoiceResponse
+	(*DisburseRequest)(nil),       // 2: payment.v1.DisburseRequest
+	(*DisburseResponse)(nil),      // 3: payment.v1.DisburseResponse
 }
 var file_proto_payment_v1_payment_proto_depIdxs = []int32{
 	0, // 0: payment.v1.PaymentService.CreateInvoice:input_type -> payment.v1.CreateInvoiceRequest
-	1, // 1: payment.v1.PaymentService.CreateInvoice:output_type -> payment.v1.CreateInvoiceResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: payment.v1.PaymentService.Disburse:input_type -> payment.v1.DisburseRequest
+	1, // 2: payment.v1.PaymentService.CreateInvoice:output_type -> payment.v1.CreateInvoiceResponse
+	3, // 3: payment.v1.PaymentService.Disburse:output_type -> payment.v1.DisburseResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -189,7 +323,7 @@ func file_proto_payment_v1_payment_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_payment_v1_payment_proto_rawDesc), len(file_proto_payment_v1_payment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

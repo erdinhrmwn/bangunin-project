@@ -39,7 +39,10 @@ func main() {
 		return nil
 	})
 
-	notifier := grpcclient.NewNotificationStub(log)
+	notifier, err := grpcclient.NewNotificationClient(cfg.Notification.GRPCAddr)
+	if err != nil {
+		fatal(err)
+	}
 	mux.HandleFunc(queue.TaskEmailSend, func(ctx context.Context, t *asynq.Task) error {
 		var p queue.EmailSendPayload
 		if err := json.Unmarshal(t.Payload(), &p); err != nil {
@@ -111,6 +114,8 @@ func main() {
 		postgresrepo.NewNotificationRepository(db),
 		postgresrepo.NewAuditLogRepository(db),
 		enqueuer,
+		postgresrepo.NewLedgerEntryRepository(db),
+		postgresrepo.NewSupplierBalanceRepository(db),
 	)
 	mux.HandleFunc(queue.TaskOrderExpire, func(ctx context.Context, t *asynq.Task) error {
 		return orderUC.HandleExpire(ctx)

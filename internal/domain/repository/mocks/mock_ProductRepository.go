@@ -500,6 +500,55 @@ func (_c *MockProductRepository_Update_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// UpdateRating provides a mock function with given fields: ctx, productID, avg, count
+func (_m *MockProductRepository) UpdateRating(ctx context.Context, productID uuid.UUID, avg float64, count int) error {
+	ret := _m.Called(ctx, productID, avg, count)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateRating")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, float64, int) error); ok {
+		r0 = rf(ctx, productID, avg, count)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProductRepository_UpdateRating_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateRating'
+type MockProductRepository_UpdateRating_Call struct {
+	*mock.Call
+}
+
+// UpdateRating is a helper method to define mock.On call
+//   - ctx context.Context
+//   - productID uuid.UUID
+//   - avg float64
+//   - count int
+func (_e *MockProductRepository_Expecter) UpdateRating(ctx interface{}, productID interface{}, avg interface{}, count interface{}) *MockProductRepository_UpdateRating_Call {
+	return &MockProductRepository_UpdateRating_Call{Call: _e.mock.On("UpdateRating", ctx, productID, avg, count)}
+}
+
+func (_c *MockProductRepository_UpdateRating_Call) Run(run func(ctx context.Context, productID uuid.UUID, avg float64, count int)) *MockProductRepository_UpdateRating_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(float64), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_UpdateRating_Call) Return(_a0 error) *MockProductRepository_UpdateRating_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProductRepository_UpdateRating_Call) RunAndReturn(run func(context.Context, uuid.UUID, float64, int) error) *MockProductRepository_UpdateRating_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockProductRepository creates a new instance of MockProductRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockProductRepository(t interface {

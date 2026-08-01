@@ -28,6 +28,8 @@ type deps struct {
 	notify       *mocks.MockNotificationRepository
 	audit        *mocks.MockAuditLogRepository
 	email        *servicemocks.MockEmailEnqueuer
+	ledger       *mocks.MockLedgerEntryRepository
+	balances     *mocks.MockSupplierBalanceRepository
 }
 
 func newUsecase(t *testing.T) (*orderusecase.Usecase, *deps) {
@@ -45,12 +47,22 @@ func newUsecase(t *testing.T) (*orderusecase.Usecase, *deps) {
 		notify:       mocks.NewMockNotificationRepository(t),
 		audit:        mocks.NewMockAuditLogRepository(t),
 		email:        servicemocks.NewMockEmailEnqueuer(t),
+		ledger:       mocks.NewMockLedgerEntryRepository(t),
+		balances:     mocks.NewMockSupplierBalanceRepository(t),
 	}
 	uc := orderusecase.New(
 		d.orders, d.histories, d.shipments, d.checkouts, d.payments, d.reservations,
 		d.variants, d.suppliers, d.users, d.notify, d.audit, d.email,
+		d.ledger, d.balances,
 	)
 	return uc, d
+}
+
+// stubSettlement allows onOrderCompleted's balance/ledger calls for any order.
+func stubSettlement(d *deps) {
+	d.shipments.EXPECT().FindByOrderID(mock.Anything, mock.Anything).Return(&entity.Shipment{Method: entity.ShipmentMethodCourier}, nil).Maybe()
+	d.balances.EXPECT().Increment(mock.Anything, mock.Anything, mock.Anything).Return(0, nil).Maybe()
+	d.ledger.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Maybe()
 }
 
 func appErrCode(t *testing.T, err error) string {
@@ -255,8 +267,63 @@ func TestHandleAutocomplete_CompletesDeliveredOrders(t *testing.T) {
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.ToStatus == entity.OrderStatusCompleted && h.ActorType == entity.ActorTypeSystem
 	})).Return(nil)
+	stubSettlement(d)
 
 	err := uc.HandleAutocomplete(context.Background())
+
+	require.NoError(t, err)
+}
+
+func TestComplete_SettlesLedgerCourierShipment(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID, userID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	o := &entity.Order{
+		ID: orderID, UserID: userID, SupplierID: supplierID, Status: entity.OrderStatusDelivered,
+		Subtotal: 1_000_000, ShippingCost: 50_000, CommissionAmount: 40_000,
+	}
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(o, nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusCompleted).Return(nil)
+	d.histories.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+	d.shipments.EXPECT().FindByOrderID(mock.Anything, orderID).Return(&entity.Shipment{Method: entity.ShipmentMethodCourier}, nil)
+
+	d.balances.EXPECT().Increment(mock.Anything, supplierID, float64(1_000_000)).Return(1_000_000.0, nil)
+	d.ledger.EXPECT().Create(mock.Anything, mock.MatchedBy(func(e *entity.LedgerEntry) bool {
+		return e.OrderID != nil && *e.OrderID == orderID && e.SupplierID == supplierID && e.Type == entity.LedgerTypeCreditOrder &&
+			e.Amount == 1_000_000 && e.BalanceAfter == 1_000_000
+	})).Return(nil)
+
+	d.balances.EXPECT().Increment(mock.Anything, supplierID, float64(-40_000)).Return(960_000.0, nil)
+	d.ledger.EXPECT().Create(mock.Anything, mock.MatchedBy(func(e *entity.LedgerEntry) bool {
+		return e.Type == entity.LedgerTypeDebitCommission && e.Amount == 40_000 && e.BalanceAfter == 960_000
+	})).Return(nil)
+
+	err := uc.Complete(context.Background(), orderID, userID)
+
+	require.NoError(t, err)
+}
+
+func TestComplete_SettlesLedgerFleetShipmentIncludesShippingCost(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID, userID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	o := &entity.Order{
+		ID: orderID, UserID: userID, SupplierID: supplierID, Status: entity.OrderStatusDelivered,
+		Subtotal: 1_000_000, ShippingCost: 50_000, CommissionAmount: 40_000,
+	}
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(o, nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusCompleted).Return(nil)
+	d.histories.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+	d.shipments.EXPECT().FindByOrderID(mock.Anything, orderID).Return(&entity.Shipment{Method: entity.ShipmentMethodSupplierFleet}, nil)
+
+	d.balances.EXPECT().Increment(mock.Anything, supplierID, float64(1_050_000)).Return(1_050_000.0, nil)
+	d.ledger.EXPECT().Create(mock.Anything, mock.MatchedBy(func(e *entity.LedgerEntry) bool {
+		return e.Type == entity.LedgerTypeCreditOrder && e.Amount == 1_050_000
+	})).Return(nil)
+	d.balances.EXPECT().Increment(mock.Anything, supplierID, float64(-40_000)).Return(1_010_000.0, nil)
+	d.ledger.EXPECT().Create(mock.Anything, mock.MatchedBy(func(e *entity.LedgerEntry) bool {
+		return e.Type == entity.LedgerTypeDebitCommission && e.Amount == 40_000
+	})).Return(nil)
+
+	err := uc.Complete(context.Background(), orderID, userID)
 
 	require.NoError(t, err)
 }

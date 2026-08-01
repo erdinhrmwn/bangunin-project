@@ -39,6 +39,18 @@ func (u *Usecase) UpdateProfile(ctx context.Context, id uuid.UUID, name, phone s
 	return usr, nil
 }
 
+func (u *Usecase) UpdateNotificationSettings(ctx context.Context, id uuid.UUID, emailMarketing bool) (*entity.User, error) {
+	usr, err := u.users.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	usr.EmailMarketing = emailMarketing
+	if err := u.users.Update(ctx, usr); err != nil {
+		return nil, err
+	}
+	return usr, nil
+}
+
 func (u *Usecase) ChangePassword(ctx context.Context, id uuid.UUID, oldPassword, newPassword string) error {
 	usr, err := u.users.FindByID(ctx, id)
 	if err != nil {

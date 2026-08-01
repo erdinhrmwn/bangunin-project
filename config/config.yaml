@@ -40,3 +40,6 @@ catalog:
 payment:
   grpc_addr: "localhost:50051"
   internal_secret: "change-me-in-env"
+
+notification:
+  grpc_addr: "localhost:50052"

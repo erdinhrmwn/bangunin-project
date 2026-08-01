@@ -21,5 +21,6 @@ type User struct {
 	Phone           string
 	Status          string
 	EmailVerifiedAt *time.Time
+	EmailMarketing  bool
 	CreatedAt       time.Time
 }

@@ -33,6 +33,8 @@ type Usecase struct {
 	notify       repository.NotificationRepository
 	audit        repository.AuditLogRepository
 	email        service.EmailEnqueuer
+	ledger       repository.LedgerEntryRepository
+	balances     repository.SupplierBalanceRepository
 }
 
 func New(
@@ -48,11 +50,14 @@ func New(
 	notify repository.NotificationRepository,
 	audit repository.AuditLogRepository,
 	email service.EmailEnqueuer,
+	ledger repository.LedgerEntryRepository,
+	balances repository.SupplierBalanceRepository,
 ) *Usecase {
 	return &Usecase{
 		orders: orders, histories: histories, shipments: shipments, checkouts: checkouts,
 		payments: payments, reservations: reservations, variants: variants, suppliers: suppliers,
 		users: users, notify: notify, audit: audit, email: email,
+		ledger: ledger, balances: balances,
 	}
 }
 
@@ -420,11 +425,46 @@ func (u *Usecase) HandleAutocomplete(ctx context.Context) error {
 	return nil
 }
 
-// onOrderCompleted is the single call site for post-completion effects.
-// Phase 6 wires supplier balance/ledger crediting in here.
+// onOrderCompleted is the single call site for post-completion effects
+// (FR-6.1): credits the supplier balance for the order subtotal (+shipping
+// if own-fleet, since courier shipping never enters escrow) and debits the
+// pre-computed platform commission, recording each as an append-only ledger
+// entry. Idempotent by construction: both call sites only invoke this right
+// after a successful transition to completed, and "completed" is terminal
+// in the transitions table, so a second attempt fails at transition() before
+// reaching here.
 func (u *Usecase) onOrderCompleted(ctx context.Context, o *entity.Order) error {
-	_ = ctx
-	_ = o
+	shipment, err := u.shipments.FindByOrderID(ctx, o.ID)
+	if err != nil {
+		return fmt.Errorf("order: find shipment for settlement: %w", err)
+	}
+
+	credit := o.Subtotal
+	if shipment.Method == entity.ShipmentMethodSupplierFleet {
+		credit += o.ShippingCost
+	}
+
+	balance, err := u.balances.Increment(ctx, o.SupplierID, credit)
+	if err != nil {
+		return fmt.Errorf("order: credit supplier balance: %w", err)
+	}
+	if err := u.ledger.Create(ctx, &entity.LedgerEntry{
+		ID: mustNewV7(), OrderID: &o.ID, SupplierID: o.SupplierID,
+		Type: entity.LedgerTypeCreditOrder, Amount: credit, BalanceAfter: balance,
+	}); err != nil {
+		return fmt.Errorf("order: record credit ledger entry: %w", err)
+	}
+
+	balance, err = u.balances.Increment(ctx, o.SupplierID, -o.CommissionAmount)
+	if err != nil {
+		return fmt.Errorf("order: debit commission: %w", err)
+	}
+	if err := u.ledger.Create(ctx, &entity.LedgerEntry{
+		ID: mustNewV7(), OrderID: &o.ID, SupplierID: o.SupplierID,
+		Type: entity.LedgerTypeDebitCommission, Amount: o.CommissionAmount, BalanceAfter: balance,
+	}); err != nil {
+		return fmt.Errorf("order: record commission ledger entry: %w", err)
+	}
 	return nil
 }
 

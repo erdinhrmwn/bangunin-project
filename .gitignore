@@ -2,3 +2,5 @@
 .worktrees/
 bin/
 .env
+services/payment/payment
+services/notification/notification
