@@ -1,0 +1,185 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"erdinhrmwn/bangunin/internal/domain/entity"
+	"erdinhrmwn/bangunin/internal/domain/errs"
+)
+
+type OrderRepository struct {
+	db *pgxpool.Pool
+}
+
+func NewOrderRepository(db *pgxpool.Pool) *OrderRepository {
+	return &OrderRepository{db: db}
+}
+
+func (r *OrderRepository) Create(ctx context.Context, o *entity.Order) error {
+	const q = `
+		INSERT INTO orders (
+			id, checkout_group_id, user_id, supplier_id, order_number, status,
+			subtotal, shipping_cost, commission_amount, total, shipping_address
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`
+	_, err := r.db.Exec(ctx, q,
+		o.ID, o.CheckoutGroupID, o.UserID, o.SupplierID, o.OrderNumber, o.Status,
+		o.Subtotal, o.ShippingCost, o.CommissionAmount, o.Total, o.ShippingAddress,
+	)
+	if err != nil {
+		return fmt.Errorf("postgres: create order: %w", err)
+	}
+	return nil
+}
+
+func (r *OrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
+	if _, err := r.db.Exec(ctx, `UPDATE orders SET status = $2 WHERE id = $1`, id, status); err != nil {
+		return fmt.Errorf("postgres: update order status: %w", err)
+	}
+	return nil
+}
+
+func (r *OrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.Order, error) {
+	o, err := scanOrder(r.db.QueryRow(ctx, selectOrderCols+`FROM orders WHERE id = $1`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, errs.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("postgres: find order: %w", err)
+	}
+	return o, nil
+}
+
+func (r *OrderRepository) ListByCheckoutGroupID(ctx context.Context, checkoutGroupID uuid.UUID) ([]*entity.Order, error) {
+	rows, err := r.db.Query(ctx, selectOrderCols+`FROM orders WHERE checkout_group_id = $1 ORDER BY created_at`, checkoutGroupID)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list orders by checkout group: %w", err)
+	}
+	defer rows.Close()
+	return collectOrders(rows)
+}
+
+func (r *OrderRepository) ListByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*entity.Order, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM orders WHERE user_id = $1`, userID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("postgres: count orders by user: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx,
+		selectOrderCols+`FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		userID, perPage, (page-1)*perPage,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("postgres: list orders by user: %w", err)
+	}
+	defer rows.Close()
+
+	out, err := collectOrders(rows)
+	return out, total, err
+}
+
+func (r *OrderRepository) ListBySupplierID(ctx context.Context, supplierID uuid.UUID, page, perPage int) ([]*entity.Order, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM orders WHERE supplier_id = $1`, supplierID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("postgres: count orders by supplier: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx,
+		selectOrderCols+`FROM orders WHERE supplier_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		supplierID, perPage, (page-1)*perPage,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("postgres: list orders by supplier: %w", err)
+	}
+	defer rows.Close()
+
+	out, err := collectOrders(rows)
+	return out, total, err
+}
+
+func (r *OrderRepository) ListDeliveredBefore(ctx context.Context, cutoff time.Time) ([]*entity.Order, error) {
+	rows, err := r.db.Query(ctx,
+		selectOrderCols+`FROM orders WHERE status = 'delivered' AND id IN (
+			SELECT order_id FROM order_status_histories WHERE to_status = 'delivered' AND created_at < $1
+		)`,
+		cutoff,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list delivered before cutoff: %w", err)
+	}
+	defer rows.Close()
+	return collectOrders(rows)
+}
+
+func (r *OrderRepository) CreateItems(ctx context.Context, items []*entity.OrderItem) error {
+	for _, i := range items {
+		const q = `
+			INSERT INTO order_items (id, order_id, variant_id, product_name, variant_name, unit, price, qty, weight_gram)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`
+		_, err := r.db.Exec(ctx, q, i.ID, i.OrderID, i.VariantID, i.ProductName, i.VariantName, i.Unit, i.Price, i.Qty, i.WeightGram)
+		if err != nil {
+			return fmt.Errorf("postgres: create order item: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *OrderRepository) ListItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]*entity.OrderItem, error) {
+	rows, err := r.db.Query(ctx, selectOrderItemCols+`FROM order_items WHERE order_id = $1`, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list order items: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*entity.OrderItem
+	for rows.Next() {
+		i, err := scanOrderItem(rows)
+		if err != nil {
+			return nil, fmt.Errorf("postgres: scan order item: %w", err)
+		}
+		out = append(out, i)
+	}
+	return out, rows.Err()
+}
+
+const selectOrderCols = `
+	SELECT id, checkout_group_id, user_id, supplier_id, order_number, status,
+		subtotal, shipping_cost, commission_amount, total, shipping_address, created_at
+`
+
+func scanOrder(row rowScanner) (*entity.Order, error) {
+	var o entity.Order
+	err := row.Scan(
+		&o.ID, &o.CheckoutGroupID, &o.UserID, &o.SupplierID, &o.OrderNumber, &o.Status,
+		&o.Subtotal, &o.ShippingCost, &o.CommissionAmount, &o.Total, &o.ShippingAddress, &o.CreatedAt,
+	)
+	return &o, err
+}
+
+func collectOrders(rows pgx.Rows) ([]*entity.Order, error) {
+	var out []*entity.Order
+	for rows.Next() {
+		o, err := scanOrder(rows)
+		if err != nil {
+			return nil, fmt.Errorf("postgres: scan order: %w", err)
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+const selectOrderItemCols = `SELECT id, order_id, variant_id, product_name, variant_name, unit, price, qty, weight_gram `
+
+func scanOrderItem(row rowScanner) (*entity.OrderItem, error) {
+	var i entity.OrderItem
+	err := row.Scan(&i.ID, &i.OrderID, &i.VariantID, &i.ProductName, &i.VariantName, &i.Unit, &i.Price, &i.Qty, &i.WeightGram)
+	return &i, err
+}
