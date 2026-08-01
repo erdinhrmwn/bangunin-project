@@ -7,25 +7,25 @@ Checklist FR & AC per fase. Centang hanya setelah lolos verifikasi (build/test/m
 ## FASE 1 — Fondasi
 
 ### Functional Requirements
-- [ ] FR-1.1 Struktur project sesuai CLAUDE.md §3
-- [ ] FR-1.2 Config (Viper + env override, fail-fast)
-- [ ] FR-1.3 Database (pgxpool + golang-migrate)
-- [ ] FR-1.4 Migrasi awal (roles, users)
-- [ ] FR-1.5 Seeder idempotent (roles + admin)
-- [ ] FR-1.6 Redis client + helper TTL
-- [ ] FR-1.7 Logger (zerolog JSON + request log middleware)
-- [ ] FR-1.8 Middleware dasar (recover, request ID, CORS, rate limit)
-- [ ] FR-1.9 Response & error (pkg/response, pkg/apperr)
-- [ ] FR-1.10 Health endpoint
-- [ ] FR-1.11 Worker skeleton (Asynq + system:heartbeat)
-- [ ] FR-1.12 Tooling (Makefile, golangci-lint, .env.example, docker-compose)
-- [ ] FR-1.13 Graceful shutdown
+- [x] FR-1.1 Struktur project sesuai CLAUDE.md §3
+- [x] FR-1.2 Config (Viper + env override, fail-fast)
+- [x] FR-1.3 Database (pgxpool + golang-migrate)
+- [x] FR-1.4 Migrasi awal (roles, users)
+- [x] FR-1.5 Seeder idempotent (roles + admin)
+- [x] FR-1.6 Redis client + helper TTL
+- [x] FR-1.7 Logger (zerolog JSON + request log middleware)
+- [x] FR-1.8 Middleware dasar (recover, request ID, CORS, rate limit)
+- [x] FR-1.9 Response & error (pkg/response, pkg/apperr)
+- [x] FR-1.10 Health endpoint
+- [x] FR-1.11 Worker skeleton (Asynq + system:heartbeat)
+- [x] FR-1.12 Tooling (Makefile, golangci-lint, .env.example, docker-compose)
+- [x] FR-1.13 Graceful shutdown
 
 ### Acceptance Criteria
-- [ ] AC-1.a docker compose up sehat + migrate + seed + health 200
-- [ ] AC-1.b Redis mati → 503; panic → 500 rapi, proses hidup
-- [ ] AC-1.c lint & test hijau; migrate down/up bersih; seed idempotent
-- [ ] AC-1.d Rate limit 429 pada 70 req/menit
+- [x] AC-1.a docker compose up sehat + migrate + seed + health 200
+- [x] AC-1.b Redis mati → 503; panic → 500 rapi, proses hidup
+- [x] AC-1.c lint & test hijau; migrate down/up bersih; seed idempotent
+- [x] AC-1.d Rate limit 429 pada 70 req/menit
 
 ---
 
@@ -161,3 +161,8 @@ Checklist FR & AC per fase. Centang hanya setelah lolos verifikasi (build/test/m
 ## Keputusan
 
 Catatan keputusan saat menemui ambiguitas (diisi berjalannya waktu, per fase).
+
+### Fase 1
+
+- **DSN host vs container**: `.env` (dipakai untuk `go run` di host) memakai `localhost` untuk `APP_DB_DSN`/`APP_REDIS_ADDR`. Container `api`/`worker` di `docker-compose.yml` butuh DNS nama service (`postgres`, `redis`), bukan `localhost`. Solusi: override eksplisit lewat `environment:` di `docker-compose.yml` untuk kedua service (menang atas `env_file`), `.env` tetap apa adanya untuk pemakaian host langsung.
+- Verifikasi AC-1.a–1.d dijalankan lewat container terpisah pada `deploy_default` network (bukan host `localhost:5432`) karena ada proses Postgres lokal pre-existing yang bentrok di port 5432 host. Tidak mengubah proses Postgres lokal tersebut.
