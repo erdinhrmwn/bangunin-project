@@ -17,8 +17,39 @@ import (
 
 func newUsecase(t *testing.T) (*userusecase.Usecase, *mocks.MockUserRepository) {
 	t.Helper()
+	uc, users, _ := newUsecaseWithAddresses(t)
+	return uc, users
+}
+
+func newUsecaseWithAddresses(t *testing.T) (*userusecase.Usecase, *mocks.MockUserRepository, *mocks.MockUserAddressRepository) {
+	t.Helper()
 	users := mocks.NewMockUserRepository(t)
-	return userusecase.New(users), users
+	addresses := mocks.NewMockUserAddressRepository(t)
+	return userusecase.New(users, addresses), users, addresses
+}
+
+// CreateAddress: persists and, when default, clears other defaults.
+func TestCreateAddress_Default(t *testing.T) {
+	uc, _, addresses := newUsecaseWithAddresses(t)
+	userID := mustUUID(t)
+	addresses.EXPECT().Create(mock.Anything, mock.AnythingOfType("*entity.UserAddress")).Return(nil)
+	addresses.EXPECT().ClearDefault(mock.Anything, userID, mock.AnythingOfType("uuid.UUID")).Return(nil)
+
+	a, err := uc.CreateAddress(context.Background(), userID, userusecase.AddressInput{Label: "Home", IsDefault: true})
+
+	assert.NoError(t, err)
+	assert.Equal(t, userID, a.UserID)
+}
+
+// UpdateAddress: address owned by a different user -> 403 FORBIDDEN, no update call.
+func TestUpdateAddress_NotOwner(t *testing.T) {
+	uc, _, addresses := newUsecaseWithAddresses(t)
+	id, userID, otherUserID := mustUUID(t), mustUUID(t), mustUUID(t)
+	addresses.EXPECT().FindByID(mock.Anything, id).Return(&entity.UserAddress{ID: id, UserID: otherUserID}, nil)
+
+	_, err := uc.UpdateAddress(context.Background(), userID, id, userusecase.AddressInput{})
+
+	assert.Equal(t, "FORBIDDEN", apperr.From(err).Code)
 }
 
 // ChangePassword: wrong old password -> 422 INVALID_PASSWORD, no update call.

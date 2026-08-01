@@ -66,6 +66,32 @@ func stubNotify(d *deps) {
 	d.suppliers.EXPECT().FindByID(mock.Anything, mock.Anything).Return(&entity.Supplier{UserID: uuid.Must(uuid.NewV7())}, nil).Maybe()
 }
 
+func TestProcess_Success(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, SupplierID: supplierID, Status: entity.OrderStatusPaid}, nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusProcessed).Return(nil)
+	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
+		return h.ToStatus == entity.OrderStatusProcessed && h.ActorType == entity.ActorTypeSupplier
+	})).Return(nil)
+
+	err := uc.Process(context.Background(), orderID, supplierID)
+
+	require.NoError(t, err)
+}
+
+func TestProcess_WrongSupplier_Returns403(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID, supplierID, otherSupplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, SupplierID: supplierID, Status: entity.OrderStatusPaid}, nil)
+
+	err := uc.Process(context.Background(), orderID, otherSupplierID)
+
+	ae := apperr.From(err)
+	require.Equal(t, "FORBIDDEN", ae.Code)
+	require.Equal(t, 403, ae.HTTPStatus)
+}
+
 func TestShip_Courier_RequiresTrackingNumber(t *testing.T) {
 	uc, d := newUsecase(t)
 	orderID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())

@@ -13,11 +13,12 @@ import (
 )
 
 type Usecase struct {
-	users repository.UserRepository
+	users     repository.UserRepository
+	addresses repository.UserAddressRepository
 }
 
-func New(users repository.UserRepository) *Usecase {
-	return &Usecase{users: users}
+func New(users repository.UserRepository, addresses repository.UserAddressRepository) *Usecase {
+	return &Usecase{users: users, addresses: addresses}
 }
 
 func (u *Usecase) Me(ctx context.Context, id uuid.UUID) (*entity.User, error) {
@@ -52,4 +53,88 @@ func (u *Usecase) ChangePassword(ctx context.Context, id uuid.UUID, oldPassword,
 	}
 	usr.PasswordHash = hashed
 	return u.users.Update(ctx, usr)
+}
+
+// AddressInput is the address create/update payload (FR-5.1 address book).
+type AddressInput struct {
+	Label          string
+	RecipientName  string
+	RecipientPhone string
+	ProvinceID     int
+	CityID         int
+	Subdistrict    string
+	PostalCode     string
+	AddressDetail  string
+	IsDefault      bool
+}
+
+func (u *Usecase) ListAddresses(ctx context.Context, userID uuid.UUID) ([]*entity.UserAddress, error) {
+	return u.addresses.ListByUserID(ctx, userID)
+}
+
+func (u *Usecase) CreateAddress(ctx context.Context, userID uuid.UUID, in AddressInput) (*entity.UserAddress, error) {
+	a := &entity.UserAddress{
+		UserID:         userID,
+		Label:          in.Label,
+		RecipientName:  in.RecipientName,
+		RecipientPhone: in.RecipientPhone,
+		ProvinceID:     in.ProvinceID,
+		CityID:         in.CityID,
+		Subdistrict:    in.Subdistrict,
+		PostalCode:     in.PostalCode,
+		AddressDetail:  in.AddressDetail,
+		IsDefault:      in.IsDefault,
+	}
+	if err := u.addresses.Create(ctx, a); err != nil {
+		return nil, err
+	}
+	if in.IsDefault {
+		if err := u.addresses.ClearDefault(ctx, userID, a.ID); err != nil {
+			return nil, err
+		}
+	}
+	return a, nil
+}
+
+func (u *Usecase) UpdateAddress(ctx context.Context, userID, id uuid.UUID, in AddressInput) (*entity.UserAddress, error) {
+	a, err := u.ownedAddress(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	a.Label = in.Label
+	a.RecipientName = in.RecipientName
+	a.RecipientPhone = in.RecipientPhone
+	a.ProvinceID = in.ProvinceID
+	a.CityID = in.CityID
+	a.Subdistrict = in.Subdistrict
+	a.PostalCode = in.PostalCode
+	a.AddressDetail = in.AddressDetail
+	a.IsDefault = in.IsDefault
+	if err := u.addresses.Update(ctx, a); err != nil {
+		return nil, err
+	}
+	if in.IsDefault {
+		if err := u.addresses.ClearDefault(ctx, userID, a.ID); err != nil {
+			return nil, err
+		}
+	}
+	return a, nil
+}
+
+func (u *Usecase) DeleteAddress(ctx context.Context, userID, id uuid.UUID) error {
+	if _, err := u.ownedAddress(ctx, userID, id); err != nil {
+		return err
+	}
+	return u.addresses.Delete(ctx, id)
+}
+
+func (u *Usecase) ownedAddress(ctx context.Context, userID, id uuid.UUID) (*entity.UserAddress, error) {
+	a, err := u.addresses.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if a.UserID != userID {
+		return nil, apperr.New("FORBIDDEN", "Address does not belong to you", 403)
+	}
+	return a, nil
 }

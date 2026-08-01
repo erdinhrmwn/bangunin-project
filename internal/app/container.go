@@ -13,14 +13,18 @@ import (
 	"erdinhrmwn/bangunin/internal/delivery/http/handler"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/infra/database"
+	"erdinhrmwn/bangunin/internal/infra/grpcclient"
 	"erdinhrmwn/bangunin/internal/infra/queue"
+	"erdinhrmwn/bangunin/internal/infra/rajaongkir"
 	"erdinhrmwn/bangunin/internal/infra/storage"
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 	redisrepo "erdinhrmwn/bangunin/internal/repository/redis"
 	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
 	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
+	cartusecase "erdinhrmwn/bangunin/internal/usecase/cart"
 	catalogusecase "erdinhrmwn/bangunin/internal/usecase/catalog"
 	categoryusecase "erdinhrmwn/bangunin/internal/usecase/category"
+	checkoutusecase "erdinhrmwn/bangunin/internal/usecase/checkout"
 	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
 	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
 	notificationusecase "erdinhrmwn/bangunin/internal/usecase/notification"
@@ -58,6 +62,11 @@ type Container struct {
 	Inventory     *handler.InventoryHandler
 	Catalog       *handler.CatalogHandler
 	Internal      *handler.InternalHandler
+	Address       *handler.AddressHandler
+	Cart          *handler.CartHandler
+	Checkout      *handler.CheckoutHandler
+	Order         *handler.OrderHandler
+	Shipment      *handler.ShipmentHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -94,8 +103,18 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	checkoutGroupRepo := postgresrepo.NewCheckoutGroupRepository(db)
 	paymentRepo := postgresrepo.NewPaymentRepository(db)
 	stockReservationRepo := postgresrepo.NewStockReservationRepository(db)
+	userAddressRepo := postgresrepo.NewUserAddressRepository(db)
+	cartRepo := postgresrepo.NewCartRepository(db)
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
+	stockLock := redisrepo.NewStockLock(rdb)
+	shippingGW := rajaongkir.New(cfg.RajaOngkir)
+	paymentClient, err := grpcclient.NewPaymentClient(cfg.Payment.GRPCAddr)
+	if err != nil {
+		db.Close()
+		_ = rdb.Close()
+		return nil, err
+	}
 
 	mediaStorage, err := storage.New(ctx, cfg.R2)
 	if err != nil {
@@ -105,7 +124,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	}
 
 	authUC := authusecase.New(userRepo, authRepo, enqueuer, jwtSvc, cfg.JWT.RefreshTTL)
-	userUC := userusecase.New(userRepo)
+	userUC := userusecase.New(userRepo, userAddressRepo)
 	supplierUC := supplierusecase.New(supplierRepo, supplierDocRepo, supplierBankRepo)
 	mediaUC := mediausecase.New(mediaStorage, enqueuer)
 	adminSupplierUC := adminsupplierusecase.New(supplierRepo, supplierDocRepo, userRepo, auditLogRepo, notificationRepo, enqueuer)
@@ -117,6 +136,11 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	orderUC := orderusecase.New(
 		orderRepo, orderHistoryRepo, shipmentRepo, checkoutGroupRepo, paymentRepo, stockReservationRepo,
 		productVariantRepo, supplierRepo, userRepo, notificationRepo, auditLogRepo, enqueuer,
+	)
+	cartUC := cartusecase.New(cartRepo, productVariantRepo, productRepo)
+	checkoutUC := checkoutusecase.New(
+		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
+		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
 	)
 
 	return &Container{
@@ -140,6 +164,11 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
 		Catalog:       handler.NewCatalogHandler(catalogUC),
 		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, orderUC),
+		Address:       handler.NewAddressHandler(userUC),
+		Cart:          handler.NewCartHandler(cartUC),
+		Checkout:      handler.NewCheckoutHandler(checkoutUC),
+		Order:         handler.NewOrderHandler(orderUC, supplierRepo),
+		Shipment:      handler.NewShipmentHandler(orderUC),
 	}, nil
 }
 

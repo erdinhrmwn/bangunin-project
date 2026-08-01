@@ -12,7 +12,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
 	app.Get("/health", health.Check)
 
 	// No auth middleware — protected by X-Internal-Secret header check in the handler (FR-5.6).
@@ -36,6 +36,20 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	userGroup.Get("/me", user.Me)
 	userGroup.Patch("/me", user.UpdateMe)
 	userGroup.Patch("/me/password", user.UpdatePassword)
+	userGroup.Get("/addresses", address.List)
+	userGroup.Post("/addresses", address.Create)
+	userGroup.Put("/addresses/:id", address.Update)
+	userGroup.Delete("/addresses/:id", address.Delete)
+	userGroup.Get("/cart", cart.Get)
+	userGroup.Post("/cart/items", cart.AddItem)
+	userGroup.Patch("/cart/items/:id", cart.UpdateItem)
+	userGroup.Delete("/cart/items/:id", cart.RemoveItem)
+	userGroup.Post("/checkout/preview", checkout.Preview)
+	userGroup.Post("/checkout/confirm", checkout.Confirm)
+	userGroup.Get("/orders", order.ListMine)
+	userGroup.Get("/orders/:id", order.GetMine)
+	userGroup.Post("/orders/:id/cancel", order.Cancel)
+	userGroup.Get("/orders/:id/shipment", shipment.Get)
 
 	supplierGroup := api.Group("/supplier", authMw, middleware.RequireRole(entity.RoleSupplier))
 	supplierGroup.Get("/me", user.Me)
@@ -66,6 +80,10 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	supplierGroup.Delete("/products/:id/images/:imageId", approvedSupplier, product.DeleteImage)
 	supplierGroup.Post("/variants/:id/stock-adjustment", approvedSupplier, inventory.AdjustStock)
 	supplierGroup.Get("/variants/:id/movements", approvedSupplier, inventory.ListMovements)
+	supplierGroup.Get("/orders", approvedSupplier, order.ListSupplier)
+	supplierGroup.Get("/orders/:id", approvedSupplier, order.GetSupplier)
+	supplierGroup.Post("/orders/:id/process", approvedSupplier, order.Process)
+	supplierGroup.Post("/orders/:id/ship", approvedSupplier, order.Ship)
 
 	adminGroup := api.Group("/admin", authMw, middleware.RequireRole(entity.RoleAdmin))
 	adminGroup.Get("/me", user.Me)
@@ -78,6 +96,9 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	adminGroup.Post("/categories", category.Create)
 	adminGroup.Put("/categories/:id", category.Update)
 	adminGroup.Delete("/categories/:id", category.Delete)
+	adminGroup.Get("/orders", order.ListAdmin)
+	adminGroup.Get("/orders/:id", order.ListAdmin)
+	adminGroup.Post("/orders/:id/force-status", order.ForceStatus)
 
 	mediaGroup := api.Group("/media", authMw)
 	mediaGroup.Post("/upload", media.Upload)

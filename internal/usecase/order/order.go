@@ -133,6 +133,18 @@ func (u *Usecase) ListBySupplier(ctx context.Context, supplierID uuid.UUID, page
 	return u.orders.ListBySupplierID(ctx, supplierID, page, perPage)
 }
 
+// Process marks a paid order as processing (supplier acknowledges the order, FR-5.8).
+func (u *Usecase) Process(ctx context.Context, orderID, supplierID uuid.UUID) error {
+	o, err := u.orders.FindByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	if o.SupplierID != supplierID {
+		return apperr.New("FORBIDDEN", "Order does not belong to your store", 403)
+	}
+	return u.transition(ctx, o, entity.OrderStatusProcessed, entity.ActorTypeSupplier, &supplierID, "Order processing started")
+}
+
 // Ship marks a processed order shipped (FR-5.9): courier requires a tracking
 // number, fleet requires the supplier has own_fleet_enabled.
 func (u *Usecase) Ship(ctx context.Context, orderID, supplierID uuid.UUID, method, courierCode, trackingNumber string) error {
