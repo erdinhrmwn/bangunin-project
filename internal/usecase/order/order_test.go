@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
+	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
 	"erdinhrmwn/bangunin/pkg/apperr"
 
@@ -77,6 +78,102 @@ func stubNotify(d *deps) {
 	d.users.EXPECT().FindByID(mock.Anything, mock.Anything).Return(&entity.User{Email: "buyer@example.com"}, nil).Maybe()
 	d.email.EXPECT().EnqueueEmail(mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	d.suppliers.EXPECT().FindByID(mock.Anything, mock.Anything).Return(&entity.Supplier{UserID: uuid.Must(uuid.NewV7())}, nil).Maybe()
+}
+
+func TestGet_ReturnsOrder(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID := uuid.Must(uuid.NewV7())
+	want := &entity.Order{ID: orderID}
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(want, nil)
+
+	got, err := uc.Get(context.Background(), orderID)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestGet_NotFound_PropagatesError(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID := uuid.Must(uuid.NewV7())
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(nil, errs.ErrNotFound)
+
+	_, err := uc.Get(context.Background(), orderID)
+
+	require.ErrorIs(t, err, errs.ErrNotFound)
+}
+
+func TestHistory_ReturnsHistories(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID := uuid.Must(uuid.NewV7())
+	want := []*entity.OrderStatusHistory{{OrderID: orderID}}
+	d.histories.EXPECT().ListByOrderID(mock.Anything, orderID).Return(want, nil)
+
+	got, err := uc.History(context.Background(), orderID)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestShipment_ReturnsShipment(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID := uuid.Must(uuid.NewV7())
+	want := &entity.Shipment{OrderID: orderID}
+	d.shipments.EXPECT().FindByOrderID(mock.Anything, orderID).Return(want, nil)
+
+	got, err := uc.Shipment(context.Background(), orderID)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestListByUser_DelegatesToRepository(t *testing.T) {
+	uc, d := newUsecase(t)
+	userID := uuid.Must(uuid.NewV7())
+	want := []*entity.Order{{UserID: userID}}
+	d.orders.EXPECT().ListByUserID(mock.Anything, userID, 1, 20).Return(want, 1, nil)
+
+	got, total, err := uc.ListByUser(context.Background(), userID, 1, 20)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	require.Equal(t, 1, total)
+}
+
+func TestListBySupplier_DelegatesToRepository(t *testing.T) {
+	uc, d := newUsecase(t)
+	supplierID := uuid.Must(uuid.NewV7())
+	want := []*entity.Order{{SupplierID: supplierID}}
+	d.orders.EXPECT().ListBySupplierID(mock.Anything, supplierID, 1, 20).Return(want, 1, nil)
+
+	got, total, err := uc.ListBySupplier(context.Background(), supplierID, 1, 20)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	require.Equal(t, 1, total)
+}
+
+func TestDeliver_Success(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, SupplierID: supplierID, Status: entity.OrderStatusShipped}, nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusDelivered).Return(nil)
+	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
+		return h.ToStatus == entity.OrderStatusDelivered && h.ActorType == entity.ActorTypeSupplier
+	})).Return(nil)
+
+	err := uc.Deliver(context.Background(), orderID, supplierID)
+
+	require.NoError(t, err)
+}
+
+func TestDeliver_WrongSupplier_Returns403(t *testing.T) {
+	uc, d := newUsecase(t)
+	orderID, supplierID, otherSupplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, SupplierID: supplierID, Status: entity.OrderStatusShipped}, nil)
+
+	err := uc.Deliver(context.Background(), orderID, otherSupplierID)
+
+	require.Equal(t, "FORBIDDEN", appErrCode(t, err))
 }
 
 func TestProcess_Success(t *testing.T) {

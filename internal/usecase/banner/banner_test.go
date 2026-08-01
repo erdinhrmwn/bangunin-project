@@ -58,6 +58,42 @@ func TestUpdate_NotFound_ReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, errs.ErrNotFound)
 }
 
+func TestUpdate_Success(t *testing.T) {
+	uc, banners := newUsecase(t)
+	id := uuid.Must(uuid.NewV7())
+	existing := &entity.Banner{ID: id, ImageURL: "old.png"}
+	banners.EXPECT().FindByID(mock.Anything, id).Return(existing, nil)
+	banners.EXPECT().Update(mock.Anything, mock.MatchedBy(func(b *entity.Banner) bool {
+		return b.ImageURL == "new.png"
+	})).Return(nil)
+
+	got, err := uc.Update(context.Background(), id, bannerusecase.Input{ImageURL: "new.png"})
+
+	require.NoError(t, err)
+	require.Equal(t, "new.png", got.ImageURL)
+}
+
+func TestDelete_Success(t *testing.T) {
+	uc, banners := newUsecase(t)
+	id := uuid.Must(uuid.NewV7())
+	banners.EXPECT().Delete(mock.Anything, id).Return(nil)
+
+	err := uc.Delete(context.Background(), id)
+
+	require.NoError(t, err)
+}
+
+func TestListAll_DelegatesToRepository(t *testing.T) {
+	uc, banners := newUsecase(t)
+	want := []*entity.Banner{{ID: uuid.Must(uuid.NewV7())}}
+	banners.EXPECT().ListAll(mock.Anything).Return(want, nil)
+
+	got, err := uc.ListAll(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
 func TestListActive_CachesResult(t *testing.T) {
 	uc, banners := newUsecase(t)
 	want := []*entity.Banner{{ID: uuid.Must(uuid.NewV7())}}

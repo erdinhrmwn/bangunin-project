@@ -1,4 +1,4 @@
-.PHONY: help run run-worker build clean migrate-up migrate-down migrate-create seed \
+.PHONY: help run run-worker build clean migrate-up migrate-down migrate-create seed seed-demo \
         test test-cover lint fmt vet tidy gen-proto vuln \
         docker-up docker-down docker-logs docker-build
 
@@ -43,6 +43,11 @@ seed: ## Migrate up + run seeders
 	@echo "🌱 seeding database..."
 	go run ./cmd/migrate -cmd up -seed
 	@echo "✅ seed done"
+
+seed-demo: ## Migrate up + run seeders + demo dataset (3 suppliers, 30 products, 1 order per status)
+	@echo "🌱 seeding demo database..."
+	go run ./cmd/migrate -cmd up -seed -demo
+	@echo "✅ demo seed done"
 
 ## Quality
 test: ## Run tests

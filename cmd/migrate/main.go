@@ -28,6 +28,7 @@ func main() {
 	cmd := flag.String("cmd", "", "up|down|create")
 	name := flag.String("name", "", "migration name (for create)")
 	seed := flag.Bool("seed", false, "run seeds after migrating")
+	demo := flag.Bool("demo", false, "also run demo seed (3 suppliers, 30 products, 1 order per status)")
 	flag.Parse()
 
 	cfg, err := config.Load("config/config.yaml")
@@ -78,11 +79,11 @@ func main() {
 	}
 
 	if *seed {
-		runSeeds(cfg)
+		runSeeds(cfg, *demo)
 	}
 }
 
-func runSeeds(cfg *config.Config) {
+func runSeeds(cfg *config.Config, demo bool) {
 	ctx := context.Background()
 	pool, err := database.NewPool(ctx, cfg.DB)
 	if err != nil {
@@ -95,6 +96,11 @@ func runSeeds(cfg *config.Config) {
 	}
 	if err := seeds.Admin(ctx, pool); err != nil {
 		fatal(err)
+	}
+	if demo {
+		if err := seeds.Demo(ctx, pool); err != nil {
+			fatal(err)
+		}
 	}
 }
 

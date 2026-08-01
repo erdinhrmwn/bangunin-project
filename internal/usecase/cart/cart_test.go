@@ -67,6 +67,49 @@ func TestRemove_ForbiddenWhenNotOwner(t *testing.T) {
 	require.Equal(t, "FORBIDDEN", apperr.From(err).Code)
 }
 
+func TestUpdateQty_Success(t *testing.T) {
+	uc, carts, _, _ := newUsecase(t)
+	userID := uuid.Must(uuid.NewV7())
+	itemID := uuid.Must(uuid.NewV7())
+	cartID := uuid.Must(uuid.NewV7())
+
+	carts.EXPECT().FindItemByID(mock.Anything, itemID).Return(&entity.CartItem{ID: itemID, CartID: cartID}, nil)
+	carts.EXPECT().FindOrCreateByUserID(mock.Anything, userID).Return(&entity.Cart{ID: cartID, UserID: userID}, nil)
+	carts.EXPECT().UpdateItemQty(mock.Anything, itemID, 3).Return(nil)
+	carts.EXPECT().Touch(mock.Anything, cartID).Return(nil)
+
+	require.NoError(t, uc.UpdateQty(context.Background(), userID, itemID, 3))
+}
+
+func TestUpdateQty_ForbiddenWhenNotOwner(t *testing.T) {
+	uc, carts, _, _ := newUsecase(t)
+	userID := uuid.Must(uuid.NewV7())
+	itemID := uuid.Must(uuid.NewV7())
+	otherCartID := uuid.Must(uuid.NewV7())
+	myCartID := uuid.Must(uuid.NewV7())
+
+	carts.EXPECT().FindItemByID(mock.Anything, itemID).Return(&entity.CartItem{ID: itemID, CartID: otherCartID}, nil)
+	carts.EXPECT().FindOrCreateByUserID(mock.Anything, userID).Return(&entity.Cart{ID: myCartID, UserID: userID}, nil)
+
+	err := uc.UpdateQty(context.Background(), userID, itemID, 3)
+	require.Error(t, err)
+	require.Equal(t, "FORBIDDEN", apperr.From(err).Code)
+}
+
+func TestRemove_Success(t *testing.T) {
+	uc, carts, _, _ := newUsecase(t)
+	userID := uuid.Must(uuid.NewV7())
+	itemID := uuid.Must(uuid.NewV7())
+	cartID := uuid.Must(uuid.NewV7())
+
+	carts.EXPECT().FindItemByID(mock.Anything, itemID).Return(&entity.CartItem{ID: itemID, CartID: cartID}, nil)
+	carts.EXPECT().FindOrCreateByUserID(mock.Anything, userID).Return(&entity.Cart{ID: cartID, UserID: userID}, nil)
+	carts.EXPECT().RemoveItem(mock.Anything, itemID).Return(nil)
+	carts.EXPECT().Touch(mock.Anything, cartID).Return(nil)
+
+	require.NoError(t, uc.Remove(context.Background(), userID, itemID))
+}
+
 func TestGet_ComputesFlags(t *testing.T) {
 	uc, carts, variants, products := newUsecase(t)
 	userID := uuid.Must(uuid.NewV7())
