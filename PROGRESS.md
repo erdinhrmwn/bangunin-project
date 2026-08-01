@@ -32,22 +32,22 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 ## PHASE 2 — Auth + RBAC
 
 ### Functional Requirements
-- [ ] FR-2.1 Register
-- [ ] FR-2.2 Email verification (OTP)
-- [ ] FR-2.3 Login (JWT + refresh + brute force guard)
-- [ ] FR-2.4 Refresh (rotation)
-- [ ] FR-2.5 Logout (jti blacklist)
-- [ ] FR-2.6 Password reset
-- [ ] FR-2.7 Auth middleware
-- [ ] FR-2.8 RequireRole middleware
-- [ ] FR-2.9 Basic profile (/user/me)
-- [ ] FR-2.10 Notification stub (log-only)
+- [x] FR-2.1 Register
+- [x] FR-2.2 Email verification (OTP)
+- [x] FR-2.3 Login (JWT + refresh + brute force guard)
+- [x] FR-2.4 Refresh (rotation)
+- [x] FR-2.5 Logout (jti blacklist)
+- [x] FR-2.6 Password reset
+- [x] FR-2.7 Auth middleware
+- [x] FR-2.8 RequireRole middleware
+- [x] FR-2.9 Basic profile (/user/me)
+- [x] FR-2.10 Notification stub (log-only)
 
 ### Acceptance Criteria
-- [ ] AC-2.a Happy path register→verify→login→me→refresh→logout→old token rejected
-- [ ] AC-2.b RBAC 403/401 per role
-- [ ] AC-2.c Refresh token reuse rejected; password reset invalidates old sessions
-- [ ] AC-2.d Unit test coverage for auth cases
+- [x] AC-2.a Happy path register→verify→login→me→refresh→logout→old token rejected
+- [x] AC-2.b RBAC 403/401 per role
+- [x] AC-2.c Refresh token reuse rejected; password reset invalidates old sessions
+- [x] AC-2.d Unit test coverage for auth cases
 
 ---
 
@@ -166,3 +166,8 @@ Decision notes made when encountering ambiguity (filled in over time, per phase)
 
 - **Host vs container DSN**: `.env` (used for host-side `go run`) uses `localhost` for `APP_DB_DSN`/`APP_REDIS_ADDR`. The `api`/`worker` containers in `docker-compose.yml` need service-name DNS (`postgres`, `redis`), not `localhost`. Solution: explicit override via `environment:` in `docker-compose.yml` for both services (wins over `env_file`), `.env` stays as-is for direct host usage.
 - AC-1.a–1.d verification ran via a separate container on the `deploy_default` network (not host `localhost:5432`) because a pre-existing local Postgres process conflicts on host port 5432. That local Postgres process was not touched.
+
+### Phase 2
+
+- **Switched dev DB to local Postgres**: at the user's request, `.env` `APP_DB_DSN` now points at the local Postgres install (`root` user, no password, `bangunin` DB) instead of the dockerized one. Removed the `deploy-postgres-1`/`deploy-api-1`/`deploy-worker-1` containers and the `deploy_postgres_data` volume; Redis and MinIO stay on docker compose. Migrations verified clean (up → down → up) against the local DB.
+- **Bug found and fixed during AC-2.c e2e verification**: `ResetPassword`'s docstring claimed it revoked existing sessions but never did — the old refresh token still worked after a password reset. Fixed by tracking each user's refresh tokens in a Redis set (`sessions:<userID>`) and adding `AuthRepository.RevokeAllRefreshTokens`, called from `ResetPassword`. Regenerated mocks, added a unit test, re-verified live via curl.
