@@ -24,7 +24,7 @@ func (c *Container) Run() error {
 	app.Use(middleware.CORS(nil))
 	app.Use(middleware.RateLimit(c.Redis))
 
-	route.Register(app, c.Health)
+	route.Register(app, c.Health, c.Auth, c.User, c.JWT, c.AuthRepo)
 
 	errCh := make(chan error, 1)
 	go func() {
