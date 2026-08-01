@@ -8,6 +8,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	repository "erdinhrmwn/bangunin/internal/domain/repository"
+
 	uuid "github.com/google/uuid"
 )
 
@@ -22,6 +24,54 @@ type MockCheckoutGroupRepository_Expecter struct {
 
 func (_m *MockCheckoutGroupRepository) EXPECT() *MockCheckoutGroupRepository_Expecter {
 	return &MockCheckoutGroupRepository_Expecter{mock: &_m.Mock}
+}
+
+// Confirm provides a mock function with given fields: ctx, g, orders
+func (_m *MockCheckoutGroupRepository) Confirm(ctx context.Context, g *entity.CheckoutGroup, orders []repository.ConfirmOrder) error {
+	ret := _m.Called(ctx, g, orders)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Confirm")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *entity.CheckoutGroup, []repository.ConfirmOrder) error); ok {
+		r0 = rf(ctx, g, orders)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockCheckoutGroupRepository_Confirm_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Confirm'
+type MockCheckoutGroupRepository_Confirm_Call struct {
+	*mock.Call
+}
+
+// Confirm is a helper method to define mock.On call
+//   - ctx context.Context
+//   - g *entity.CheckoutGroup
+//   - orders []repository.ConfirmOrder
+func (_e *MockCheckoutGroupRepository_Expecter) Confirm(ctx interface{}, g interface{}, orders interface{}) *MockCheckoutGroupRepository_Confirm_Call {
+	return &MockCheckoutGroupRepository_Confirm_Call{Call: _e.mock.On("Confirm", ctx, g, orders)}
+}
+
+func (_c *MockCheckoutGroupRepository_Confirm_Call) Run(run func(ctx context.Context, g *entity.CheckoutGroup, orders []repository.ConfirmOrder)) *MockCheckoutGroupRepository_Confirm_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*entity.CheckoutGroup), args[2].([]repository.ConfirmOrder))
+	})
+	return _c
+}
+
+func (_c *MockCheckoutGroupRepository_Confirm_Call) Return(_a0 error) *MockCheckoutGroupRepository_Confirm_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockCheckoutGroupRepository_Confirm_Call) RunAndReturn(run func(context.Context, *entity.CheckoutGroup, []repository.ConfirmOrder) error) *MockCheckoutGroupRepository_Confirm_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Create provides a mock function with given fields: ctx, g

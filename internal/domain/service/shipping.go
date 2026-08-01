@@ -1,6 +1,13 @@
 package service
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrShippingUnavailable is returned by ShippingGateway when the courier API
+// is unreachable or errors after retry (FR-5.2).
+var ErrShippingUnavailable = errors.New("shipping gateway unavailable")
 
 // ShippingOption is one courier/service quote returned by ShippingGateway.
 type ShippingOption struct {

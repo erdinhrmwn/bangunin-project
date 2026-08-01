@@ -32,14 +32,23 @@ type Client struct {
 }
 
 func New(cfg config.RajaOngkirConfig) *Client {
-	return &Client{apiKey: cfg.APIKey, mock: cfg.Mock, httpClient: &http.Client{Timeout: 10 * time.Second}}
+	return &Client{apiKey: cfg.APIKey, mock: cfg.Mock, httpClient: &http.Client{Timeout: 5 * time.Second}}
 }
 
+// GetCost tries the real API once, retries once on failure (FR-5.2), and
+// maps any remaining error to service.ErrShippingUnavailable.
 func (c *Client) GetCost(ctx context.Context, originCityID, destCityID int, weightGram int) ([]service.ShippingOption, error) {
 	if c.mock {
 		return c.mockCost(weightGram), nil
 	}
-	return c.realCost(ctx, originCityID, destCityID, weightGram)
+	opts, err := c.realCost(ctx, originCityID, destCityID, weightGram)
+	if err != nil {
+		opts, err = c.realCost(ctx, originCityID, destCityID, weightGram)
+	}
+	if err != nil {
+		return nil, service.ErrShippingUnavailable
+	}
+	return opts, nil
 }
 
 func (c *Client) mockCost(weightGram int) []service.ShippingOption {
