@@ -23,7 +23,11 @@ func (r *NotificationRepository) Create(ctx context.Context, n *entity.Notificat
 		INSERT INTO notifications (id, user_id, type, title, body, data)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
-	_, err := r.db.Exec(ctx, q, n.ID, n.UserID, n.Type, n.Title, n.Body, n.Data)
+	data := n.Data
+	if data == nil {
+		data = map[string]any{} // data column is NOT NULL; nil map encodes as SQL NULL
+	}
+	_, err := r.db.Exec(ctx, q, n.ID, n.UserID, n.Type, n.Title, n.Body, data)
 	if err != nil {
 		return fmt.Errorf("postgres: create notification: %w", err)
 	}

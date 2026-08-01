@@ -23,7 +23,11 @@ func (r *AuditLogRepository) Create(ctx context.Context, a *entity.AuditLog) err
 		INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, metadata, ip_address)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := r.db.Exec(ctx, q, a.ID, a.ActorID, a.Action, a.EntityType, a.EntityID, a.Metadata, a.IPAddress)
+	metadata := a.Metadata
+	if metadata == nil {
+		metadata = map[string]any{} // metadata column is NOT NULL; nil map encodes as SQL NULL
+	}
+	_, err := r.db.Exec(ctx, q, a.ID, a.ActorID, a.Action, a.EntityType, a.EntityID, metadata, a.IPAddress)
 	if err != nil {
 		return fmt.Errorf("postgres: create audit log: %w", err)
 	}
