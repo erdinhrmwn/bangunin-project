@@ -34,9 +34,10 @@ type Container struct {
 	DB     *pgxpool.Pool
 	Redis  *redis.Client
 
-	JWT      *jwt.Service
-	AuthRepo repository.AuthRepository
-	Enqueuer *queue.Enqueuer
+	JWT          *jwt.Service
+	AuthRepo     repository.AuthRepository
+	SupplierRepo repository.SupplierRepository
+	Enqueuer     *queue.Enqueuer
 
 	Health   *handler.HealthHandler
 	Auth     *handler.AuthHandler
@@ -82,18 +83,19 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	mediaUC := mediausecase.New(mediaStorage, enqueuer)
 
 	return &Container{
-		Config:   cfg,
-		Logger:   log,
-		DB:       db,
-		Redis:    rdb,
-		JWT:      jwtSvc,
-		AuthRepo: authRepo,
-		Enqueuer: enqueuer,
-		Health:   handler.NewHealthHandler(db, rdb, "1.0.0"),
-		Auth:     handler.NewAuthHandler(authUC, jwtSvc),
-		User:     handler.NewUserHandler(userUC),
-		Supplier: handler.NewSupplierHandler(supplierUC),
-		Media:    handler.NewMediaHandler(mediaUC),
+		Config:       cfg,
+		Logger:       log,
+		DB:           db,
+		Redis:        rdb,
+		JWT:          jwtSvc,
+		AuthRepo:     authRepo,
+		SupplierRepo: supplierRepo,
+		Enqueuer:     enqueuer,
+		Health:       handler.NewHealthHandler(db, rdb, "1.0.0"),
+		Auth:         handler.NewAuthHandler(authUC, jwtSvc),
+		User:         handler.NewUserHandler(userUC),
+		Supplier:     handler.NewSupplierHandler(supplierUC),
+		Media:        handler.NewMediaHandler(mediaUC),
 	}, nil
 }
 

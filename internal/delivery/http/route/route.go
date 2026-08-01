@@ -12,7 +12,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
 	app.Get("/health", health.Check)
 
 	api := app.Group("/api/v1")
@@ -46,6 +46,7 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	supplierGroup.Put("/bank-accounts/:id", supplier.UpdateBankAccount)
 	supplierGroup.Delete("/bank-accounts/:id", supplier.DeleteBankAccount)
 	supplierGroup.Post("/submit", supplier.Submit)
+	supplierGroup.Get("/dashboard", middleware.RequireApprovedSupplier(suppliers), supplier.Profile)
 
 	adminGroup := api.Group("/admin", authMw, middleware.RequireRole(entity.RoleAdmin))
 	adminGroup.Get("/me", user.Me)
