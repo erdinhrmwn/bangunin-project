@@ -63,6 +63,7 @@ type R2Config struct {
 	SecretKey string
 	Bucket    string
 	Endpoint  string
+	UseSSL    bool
 }
 
 // requiredKeys are the config keys that must be non-empty for the app to
@@ -127,6 +128,7 @@ func Load(configPath string) (*Config, error) {
 			SecretKey: v.GetString("r2.secret_key"),
 			Bucket:    v.GetString("r2.bucket"),
 			Endpoint:  v.GetString("r2.endpoint"),
+			UseSSL:    v.GetBool("r2.use_ssl"),
 		},
 	}
 
