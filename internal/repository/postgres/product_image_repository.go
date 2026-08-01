@@ -89,6 +89,14 @@ func (r *ProductImageRepository) UnsetPrimary(ctx context.Context, productID uui
 	return nil
 }
 
+func (r *ProductImageRepository) SetPrimary(ctx context.Context, id uuid.UUID) error {
+	const q = `UPDATE product_images SET is_primary = true WHERE id = $1`
+	if _, err := r.db.Exec(ctx, q, id); err != nil {
+		return fmt.Errorf("postgres: set primary product image: %w", err)
+	}
+	return nil
+}
+
 func (r *ProductImageRepository) FindPrimary(ctx context.Context, productID uuid.UUID) (*entity.ProductImage, error) {
 	const q = selectImageCols + `FROM product_images WHERE product_id = $1 AND is_primary = true`
 	img, err := scanImage(r.db.QueryRow(ctx, q, productID))

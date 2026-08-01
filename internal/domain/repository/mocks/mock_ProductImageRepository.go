@@ -352,6 +352,53 @@ func (_c *MockProductImageRepository_ListByProductID_Call) RunAndReturn(run func
 	return _c
 }
 
+// SetPrimary provides a mock function with given fields: ctx, id
+func (_m *MockProductImageRepository) SetPrimary(ctx context.Context, id uuid.UUID) error {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetPrimary")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProductImageRepository_SetPrimary_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetPrimary'
+type MockProductImageRepository_SetPrimary_Call struct {
+	*mock.Call
+}
+
+// SetPrimary is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+func (_e *MockProductImageRepository_Expecter) SetPrimary(ctx interface{}, id interface{}) *MockProductImageRepository_SetPrimary_Call {
+	return &MockProductImageRepository_SetPrimary_Call{Call: _e.mock.On("SetPrimary", ctx, id)}
+}
+
+func (_c *MockProductImageRepository_SetPrimary_Call) Run(run func(ctx context.Context, id uuid.UUID)) *MockProductImageRepository_SetPrimary_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockProductImageRepository_SetPrimary_Call) Return(_a0 error) *MockProductImageRepository_SetPrimary_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProductImageRepository_SetPrimary_Call) RunAndReturn(run func(context.Context, uuid.UUID) error) *MockProductImageRepository_SetPrimary_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UnsetPrimary provides a mock function with given fields: ctx, productID
 func (_m *MockProductImageRepository) UnsetPrimary(ctx context.Context, productID uuid.UUID) error {
 	ret := _m.Called(ctx, productID)

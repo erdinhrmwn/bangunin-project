@@ -15,5 +15,6 @@ type ProductImageRepository interface {
 	ListByProductID(ctx context.Context, productID uuid.UUID) ([]*entity.ProductImage, error)
 	CountByProductID(ctx context.Context, productID uuid.UUID) (int, error)
 	UnsetPrimary(ctx context.Context, productID uuid.UUID) error
+	SetPrimary(ctx context.Context, id uuid.UUID) error
 	FindPrimary(ctx context.Context, productID uuid.UUID) (*entity.ProductImage, error)
 }
