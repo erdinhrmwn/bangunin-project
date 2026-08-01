@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 type Config struct {
@@ -71,6 +72,8 @@ var requiredKeys = []string{"db.dsn", "redis.addr", "jwt.secret"}
 // Load reads config.yaml from configPath, applies APP_-prefixed env
 // overrides, and fails fast if a required key is missing.
 func Load(configPath string) (*Config, error) {
+	_ = gotenv.Load() // .env is optional (e.g. absent in prod, using real env vars)
+
 	v := viper.New()
 	v.SetConfigFile(configPath)
 	v.SetEnvPrefix("APP")
