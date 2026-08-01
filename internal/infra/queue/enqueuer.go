@@ -19,8 +19,8 @@ func (e *Enqueuer) Close() error {
 	return e.client.Close()
 }
 
-func (e *Enqueuer) EnqueueEmail(p EmailSendPayload) error {
-	payload, err := p.Marshal()
+func (e *Enqueuer) EnqueueEmail(to, subject, body string) error {
+	payload, err := EmailSendPayload{To: to, Subject: subject, Body: body}.Marshal()
 	if err != nil {
 		return fmt.Errorf("queue: marshal email payload: %w", err)
 	}
