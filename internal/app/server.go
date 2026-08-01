@@ -20,6 +20,7 @@ func (c *Container) Run() error {
 
 	app.Use(middleware.Recover(c.Logger))
 	app.Use(middleware.RequestID())
+	app.Use(middleware.RequestLog(c.Logger))
 	app.Use(middleware.CORS(nil))
 	app.Use(middleware.RateLimit(c.Redis))
 
