@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"erdinhrmwn/bangunin/config"
 	"erdinhrmwn/bangunin/internal/infra/grpcclient"
 	"erdinhrmwn/bangunin/internal/infra/queue"
+	"erdinhrmwn/bangunin/internal/infra/storage"
+	"erdinhrmwn/bangunin/pkg/imageresize"
 	"erdinhrmwn/bangunin/pkg/logger"
 )
 
@@ -38,6 +41,30 @@ func main() {
 			return fmt.Errorf("email:send: unmarshal payload: %w", err)
 		}
 		return notifier.SendEmail(ctx, p.To, p.Subject, p.Body)
+	})
+
+	mediaStorage, err := storage.New(context.Background(), cfg.R2)
+	if err != nil {
+		fatal(err)
+	}
+	mux.HandleFunc(queue.TaskMediaProcess, func(ctx context.Context, t *asynq.Task) error {
+		var p queue.MediaProcessPayload
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("media:process: unmarshal payload: %w", err)
+		}
+		obj, err := mediaStorage.Download(ctx, p.Key)
+		if err != nil {
+			return fmt.Errorf("media:process: download %s: %w", p.Key, err)
+		}
+		data, contentType, err := imageresize.Resize(obj)
+		_ = obj.Close()
+		if err != nil {
+			return fmt.Errorf("media:process: resize %s: %w", p.Key, err)
+		}
+		if _, err := mediaStorage.Upload(ctx, p.Key, bytes.NewReader(data), int64(len(data)), contentType); err != nil {
+			return fmt.Errorf("media:process: re-upload %s: %w", p.Key, err)
+		}
+		return nil
 	})
 
 	// Scheduler is wired but intentionally empty — periodic jobs (e.g.

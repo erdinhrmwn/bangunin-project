@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 type Config struct {
@@ -62,6 +63,7 @@ type R2Config struct {
 	SecretKey string
 	Bucket    string
 	Endpoint  string
+	UseSSL    bool
 }
 
 // requiredKeys are the config keys that must be non-empty for the app to
@@ -71,6 +73,8 @@ var requiredKeys = []string{"db.dsn", "redis.addr", "jwt.secret"}
 // Load reads config.yaml from configPath, applies APP_-prefixed env
 // overrides, and fails fast if a required key is missing.
 func Load(configPath string) (*Config, error) {
+	_ = gotenv.Load() // .env is optional (e.g. absent in prod, using real env vars)
+
 	v := viper.New()
 	v.SetConfigFile(configPath)
 	v.SetEnvPrefix("APP")
@@ -124,6 +128,7 @@ func Load(configPath string) (*Config, error) {
 			SecretKey: v.GetString("r2.secret_key"),
 			Bucket:    v.GetString("r2.bucket"),
 			Endpoint:  v.GetString("r2.endpoint"),
+			UseSSL:    v.GetBool("r2.use_ssl"),
 		},
 	}
 

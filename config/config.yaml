@@ -28,7 +28,8 @@ rajaongkir:
   mock: true
 
 r2:
-  access_key: ""
-  secret_key: ""
-  bucket: ""
-  endpoint: ""
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "bangunin-dev"
+  endpoint: "localhost:9000"
+  use_ssl: false

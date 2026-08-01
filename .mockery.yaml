@@ -6,6 +6,13 @@ packages:
     interfaces:
       UserRepository:
       AuthRepository:
+      SupplierRepository:
+      SupplierDocumentRepository:
+      SupplierBankAccountRepository:
+      NotificationRepository:
+      AuditLogRepository:
   erdinhrmwn/bangunin/internal/domain/service:
     interfaces:
       EmailEnqueuer:
+      StorageService:
+      MediaEnqueuer:

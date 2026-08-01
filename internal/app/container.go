@@ -14,9 +14,14 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/infra/database"
 	"erdinhrmwn/bangunin/internal/infra/queue"
+	"erdinhrmwn/bangunin/internal/infra/storage"
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 	redisrepo "erdinhrmwn/bangunin/internal/repository/redis"
+	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
 	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
+	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
+	notificationusecase "erdinhrmwn/bangunin/internal/usecase/notification"
+	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	"erdinhrmwn/bangunin/pkg/jwt"
 	"erdinhrmwn/bangunin/pkg/logger"
@@ -31,13 +36,18 @@ type Container struct {
 	DB     *pgxpool.Pool
 	Redis  *redis.Client
 
-	JWT      *jwt.Service
-	AuthRepo repository.AuthRepository
-	Enqueuer *queue.Enqueuer
+	JWT          *jwt.Service
+	AuthRepo     repository.AuthRepository
+	SupplierRepo repository.SupplierRepository
+	Enqueuer     *queue.Enqueuer
 
-	Health *handler.HealthHandler
-	Auth   *handler.AuthHandler
-	User   *handler.UserHandler
+	Health        *handler.HealthHandler
+	Auth          *handler.AuthHandler
+	User          *handler.UserHandler
+	Supplier      *handler.SupplierHandler
+	Media         *handler.MediaHandler
+	AdminSupplier *handler.AdminSupplierHandler
+	Notification  *handler.NotificationHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -58,23 +68,44 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 
 	userRepo := postgresrepo.NewUserRepository(db)
 	authRepo := redisrepo.NewAuthRepository(rdb)
+	supplierRepo := postgresrepo.NewSupplierRepository(db)
+	supplierDocRepo := postgresrepo.NewSupplierDocumentRepository(db)
+	supplierBankRepo := postgresrepo.NewSupplierBankAccountRepository(db)
+	notificationRepo := postgresrepo.NewNotificationRepository(db)
+	auditLogRepo := postgresrepo.NewAuditLogRepository(db)
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 
+	mediaStorage, err := storage.New(ctx, cfg.R2)
+	if err != nil {
+		db.Close()
+		_ = rdb.Close()
+		return nil, err
+	}
+
 	authUC := authusecase.New(userRepo, authRepo, enqueuer, jwtSvc, cfg.JWT.RefreshTTL)
 	userUC := userusecase.New(userRepo)
+	supplierUC := supplierusecase.New(supplierRepo, supplierDocRepo, supplierBankRepo)
+	mediaUC := mediausecase.New(mediaStorage, enqueuer)
+	adminSupplierUC := adminsupplierusecase.New(supplierRepo, supplierDocRepo, userRepo, auditLogRepo, notificationRepo, enqueuer)
+	notificationUC := notificationusecase.New(notificationRepo)
 
 	return &Container{
-		Config:   cfg,
-		Logger:   log,
-		DB:       db,
-		Redis:    rdb,
-		JWT:      jwtSvc,
-		AuthRepo: authRepo,
-		Enqueuer: enqueuer,
-		Health:   handler.NewHealthHandler(db, rdb, "1.0.0"),
-		Auth:     handler.NewAuthHandler(authUC, jwtSvc),
-		User:     handler.NewUserHandler(userUC),
+		Config:        cfg,
+		Logger:        log,
+		DB:            db,
+		Redis:         rdb,
+		JWT:           jwtSvc,
+		AuthRepo:      authRepo,
+		SupplierRepo:  supplierRepo,
+		Enqueuer:      enqueuer,
+		Health:        handler.NewHealthHandler(db, rdb, "1.0.0"),
+		Auth:          handler.NewAuthHandler(authUC, jwtSvc),
+		User:          handler.NewUserHandler(userUC),
+		Supplier:      handler.NewSupplierHandler(supplierUC),
+		Media:         handler.NewMediaHandler(mediaUC),
+		AdminSupplier: handler.NewAdminSupplierHandler(adminSupplierUC),
+		Notification:  handler.NewNotificationHandler(notificationUC),
 	}, nil
 }
 

@@ -30,3 +30,15 @@ func (e *Enqueuer) EnqueueEmail(to, subject, body string) error {
 	}
 	return nil
 }
+
+func (e *Enqueuer) EnqueueMediaProcess(key string) error {
+	payload, err := MediaProcessPayload{Key: key}.Marshal()
+	if err != nil {
+		return fmt.Errorf("queue: marshal media process payload: %w", err)
+	}
+	_, err = e.client.Enqueue(asynq.NewTask(TaskMediaProcess, payload))
+	if err != nil {
+		return fmt.Errorf("queue: enqueue media process: %w", err)
+	}
+	return nil
+}

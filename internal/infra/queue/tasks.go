@@ -6,8 +6,9 @@ import "encoding/json"
 
 // Task type names.
 const (
-	TaskHeartbeat = "system:heartbeat"
-	TaskEmailSend = "email:send"
+	TaskHeartbeat    = "system:heartbeat"
+	TaskEmailSend    = "email:send"
+	TaskMediaProcess = "media:process"
 )
 
 // EmailSendPayload is TaskEmailSend's JSON payload.
@@ -18,5 +19,15 @@ type EmailSendPayload struct {
 }
 
 func (p EmailSendPayload) Marshal() ([]byte, error) {
+	return json.Marshal(p)
+}
+
+// MediaProcessPayload is TaskMediaProcess's JSON payload — Key is the
+// object's storage key, resized in place after upload.
+type MediaProcessPayload struct {
+	Key string `json:"key"`
+}
+
+func (p MediaProcessPayload) Marshal() ([]byte, error) {
 	return json.Marshal(p)
 }
