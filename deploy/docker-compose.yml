@@ -50,6 +50,9 @@ services:
       dockerfile: deploy/Dockerfile.api
     env_file:
       - ../.env
+    environment:
+      APP_DB_DSN: postgres://bangunin:bangunin@postgres:5432/bangunin?sslmode=disable
+      APP_REDIS_ADDR: redis:6379
     ports:
       - "8080:8080"
     depends_on:
@@ -64,6 +67,9 @@ services:
       dockerfile: deploy/Dockerfile.worker
     env_file:
       - ../.env
+    environment:
+      APP_DB_DSN: postgres://bangunin:bangunin@postgres:5432/bangunin?sslmode=disable
+      APP_REDIS_ADDR: redis:6379
     depends_on:
       postgres:
         condition: service_healthy
