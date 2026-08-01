@@ -3,6 +3,7 @@ package user
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -73,7 +74,12 @@ func (u *Usecase) ListAddresses(ctx context.Context, userID uuid.UUID) ([]*entit
 }
 
 func (u *Usecase) CreateAddress(ctx context.Context, userID uuid.UUID, in AddressInput) (*entity.UserAddress, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("user: generate address id: %w", err)
+	}
 	a := &entity.UserAddress{
+		ID:             id,
 		UserID:         userID,
 		Label:          in.Label,
 		RecipientName:  in.RecipientName,
