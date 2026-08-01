@@ -127,8 +127,8 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 - [x] FR-6.3 Withdraw
 - [x] FR-6.4 Approval & disbursement
 - [x] FR-6.5 Review
-- [ ] FR-6.6 Full notifications (real notification-service)
-- [ ] FR-6.7 Lightweight notification preferences
+- [x] FR-6.6 Full notifications (real notification-service)
+- [x] FR-6.7 Lightweight notification preferences
 
 ### Acceptance Criteria
 - [ ] AC-6.a Settlement ledger correct; idempotent
@@ -192,3 +192,4 @@ Decision notes made when encountering ambiguity (filled in over time, per phase)
 - **Withdraw approval/disbursement modeled as fully synchronous** (FR-6.4): every current `PaymentGateway.Disburse` implementation resolves inline (`grpcclient.PaymentClient.Disburse` → `services/payment`'s mock-mode `xenditClient.Disburse`, which always succeeds synchronously). `payout.Approve` therefore calls `Disburse` inline and settles the result (ledger `debit_withdraw` entry on success, balance restore + `failed` status on error) in the same request, instead of scaffolding a `processing` status plus a separate `/internal/withdraws/callback` endpoint for an async path nothing currently exercises. **Consequence for Task/sub-step "internal_handler.go withdraw callback + route"**: dropped from scope — no callback endpoint is needed while disbursement stays synchronous. Upgrade path if a real (async) Xendit disbursement integration replaces the mock: add a `processing` status, add the callback handler, move settlement there.
 - **`ledger_entries.order_id` made nullable + `withdraw_request_id` added** (FR-6.3): the original FR-6.1 schema only supported order-based ledger entries. Withdraw disbursement also needs an append-only ledger row (`debit_withdraw`) referencing a `withdraw_request_id` instead. Rather than a separate ledger table, `order_id` was relaxed to nullable and a `ledger_entries_ref_check` CHECK constraint added (order-type entries require `order_id` + forbid `withdraw_request_id`, `debit_withdraw` requires the reverse) — keeps one physical ledger for reconciliation instead of splitting it per source.
 - **`entity.OrderItem` has no direct `ProductID`** (FR-6.5): only `VariantID`. The review usecase resolves `order_item_id` → `product_id` via `OrderItem.VariantID` → `ProductVariantRepository.FindByID` → `ProductVariant.ProductID`, instead of adding a denormalized `ProductID` to `order_items` (avoids touching an existing snapshot table for a read-path-only need). Also added `OrderRepository.FindItemByID(ctx, itemID)` — no prior method fetched a single order item by its own ID (only `ListItemsByOrderID(orderID)` existed), needed since review creation is keyed off `order_item_id`, not `order_id`. Mirrors `CartRepository.FindItemByID`.
+- **FR-6.7 notification preference is a single `users.email_marketing` boolean**, not a separate preferences table — reused the existing `User` entity/repo/`Update` path (`PATCH /user/me/notification-settings`), consistent with the plan's decision #7 (`ponytail: one bool column, promote to a preferences table if more toggles appear`).
