@@ -12,7 +12,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository) {
 	app.Get("/health", health.Check)
 
 	api := app.Group("/api/v1")
@@ -36,7 +36,20 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 
 	supplierGroup := api.Group("/supplier", authMw, middleware.RequireRole(entity.RoleSupplier))
 	supplierGroup.Get("/me", user.Me)
+	supplierGroup.Post("/profile", supplier.CreateProfile)
+	supplierGroup.Put("/profile", supplier.UpdateProfile)
+	supplierGroup.Get("/profile", supplier.Profile)
+	supplierGroup.Post("/documents", supplier.UploadDocument)
+	supplierGroup.Get("/documents", supplier.ListDocuments)
+	supplierGroup.Post("/bank-accounts", supplier.CreateBankAccount)
+	supplierGroup.Get("/bank-accounts", supplier.ListBankAccounts)
+	supplierGroup.Put("/bank-accounts/:id", supplier.UpdateBankAccount)
+	supplierGroup.Delete("/bank-accounts/:id", supplier.DeleteBankAccount)
+	supplierGroup.Post("/submit", supplier.Submit)
 
 	adminGroup := api.Group("/admin", authMw, middleware.RequireRole(entity.RoleAdmin))
 	adminGroup.Get("/me", user.Me)
+
+	mediaGroup := api.Group("/media", authMw)
+	mediaGroup.Post("/upload", media.Upload)
 }
