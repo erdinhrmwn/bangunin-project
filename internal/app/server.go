@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/hibiken/asynq"
 
 	"erdinhrmwn/bangunin/internal/delivery/http/middleware"
 	"erdinhrmwn/bangunin/internal/delivery/http/route"
@@ -19,9 +20,13 @@ import (
 func (c *Container) Run() error {
 	app := fiber.New()
 
+	app.Get("/metrics", middleware.MetricsHandler())
+	middleware.StartQueueSizeExporter(asynq.RedisClientOpt{Addr: c.Config.Redis.Addr, Password: c.Config.Redis.Password, DB: c.Config.Redis.DB}, 15*time.Second)
+
 	app.Use(middleware.Recover(c.Logger))
 	app.Use(middleware.RequestID())
 	app.Use(middleware.RequestLog(c.Logger))
+	app.Use(middleware.Metrics)
 	app.Use(helmet.New())
 	app.Use(middleware.BodyLimit)
 	app.Use(middleware.CORS(nil))
