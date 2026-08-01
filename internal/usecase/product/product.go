@@ -158,6 +158,9 @@ func (u *Usecase) CreateVariant(ctx context.Context, supplierID, productID uuid.
 	if in.WeightGram <= 0 {
 		return nil, apperr.New("VALIDATION_ERROR", "weight_gram must be greater than 0", 422)
 	}
+	if in.MinOrderQty <= 0 {
+		in.MinOrderQty = 1
+	}
 	id, err := uuid.NewV7()
 	if err != nil {
 		return nil, fmt.Errorf("product: generate variant id: %w", err)
@@ -191,6 +194,9 @@ func (u *Usecase) UpdateVariant(ctx context.Context, supplierID, id uuid.UUID, i
 	}
 	if in.WeightGram <= 0 {
 		return nil, apperr.New("VALIDATION_ERROR", "weight_gram must be greater than 0", 422)
+	}
+	if in.MinOrderQty <= 0 {
+		in.MinOrderQty = 1
 	}
 	v.SKU = in.SKU
 	v.Name = in.Name
