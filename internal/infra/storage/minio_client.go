@@ -59,6 +59,14 @@ func (s *MinIOStorage) Upload(ctx context.Context, key string, r io.Reader, size
 	return fmt.Sprintf("%s://%s/%s/%s", s.scheme, s.host, s.bucket, key), nil
 }
 
+func (s *MinIOStorage) Download(ctx context.Context, key string) (io.ReadCloser, error) {
+	obj, err := s.client.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("storage: download %s: %w", key, err)
+	}
+	return obj, nil
+}
+
 func (s *MinIOStorage) Delete(ctx context.Context, key string) error {
 	if err := s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("storage: delete %s: %w", key, err)
