@@ -12,7 +12,7 @@ import (
 )
 
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
+func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository) {
 	app.Get("/health", health.Check)
 
 	api := app.Group("/api/v1")
@@ -50,6 +50,12 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 
 	adminGroup := api.Group("/admin", authMw, middleware.RequireRole(entity.RoleAdmin))
 	adminGroup.Get("/me", user.Me)
+	adminGroup.Get("/suppliers", adminSupplier.List)
+	adminGroup.Get("/suppliers/:id", adminSupplier.Get)
+	adminGroup.Post("/suppliers/:id/approve", adminSupplier.Approve)
+	adminGroup.Post("/suppliers/:id/reject", adminSupplier.Reject)
+	adminGroup.Post("/suppliers/:id/suspend", adminSupplier.Suspend)
+	adminGroup.Get("/audit-logs", adminSupplier.AuditLogs)
 
 	mediaGroup := api.Group("/media", authMw)
 	mediaGroup.Post("/upload", media.Upload)
