@@ -65,10 +65,10 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 - [x] FR-3.9 RequireApprovedSupplier guard
 
 ### Acceptance Criteria
-- [ ] AC-3.a Full flow profile→documents→submit→reject→fix→approve
-- [ ] AC-3.b File validation (type/size) + resize worker
-- [ ] AC-3.c Submit without NIB → 422; selling endpoint before approved → 403
-- [ ] AC-3.d New migration up/down clean
+- [x] AC-3.a Full flow profile→documents→submit→reject→fix→approve
+- [x] AC-3.b File validation (type/size) + resize worker
+- [x] AC-3.c Submit without NIB → 422; selling endpoint before approved → 403
+- [x] AC-3.d New migration up/down clean
 
 ---
 
@@ -171,3 +171,9 @@ Decision notes made when encountering ambiguity (filled in over time, per phase)
 
 - **Switched dev DB to local Postgres**: at the user's request, `.env` `APP_DB_DSN` now points at the local Postgres install (`root` user, no password, `bangunin` DB) instead of the dockerized one. Removed the `deploy-postgres-1`/`deploy-api-1`/`deploy-worker-1` containers and the `deploy_postgres_data` volume; Redis and MinIO stay on docker compose. Migrations verified clean (up → down → up) against the local DB.
 - **Bug found and fixed during AC-2.c e2e verification**: `ResetPassword`'s docstring claimed it revoked existing sessions but never did — the old refresh token still worked after a password reset. Fixed by tracking each user's refresh tokens in a Redis set (`sessions:<userID>`) and adding `AuthRepository.RevokeAllRefreshTokens`, called from `ResetPassword`. Regenerated mocks, added a unit test, re-verified live via curl.
+
+### Phase 3
+
+- **`deploy/docker-compose.yml` still defines a `postgres` service** (Phase 2 only removed the *running containers*, not the compose service). Bringing the stack up recreates a `deploy-postgres-1` container that binds host port 5432 alongside the pre-existing local Postgres — both listeners appear in `lsof -i :5432`. `localhost`/`127.0.0.1` resolution always reaches local Postgres first, so `go run ./cmd/migrate` and host-run api/worker have always correctly targeted local Postgres; the docker `postgres` service silently sits empty and unused. This caused a false alarm during AC-3.d verification (docker container had no tables — expected, it's not the DB being migrated). Resolution: stop/remove `postgres`/`api`/`worker` containers again after any docker-compose-up check; verification runs api/worker via `go run` on host against local Postgres, matching Phase 2's setup. Left the compose service definition as-is (harmless when not started) rather than editing docker-compose.yml, since AC-1.a/AC-3 checks may still want a fully-dockerized stack option later.
+- **Bug found and fixed during AC-3.a e2e verification**: `NotificationRepository.Create` and `AuditLogRepository.Create` inserted `entity.Notification.Data`/`entity.AuditLog.Metadata` directly, and pgx encodes a nil Go map as SQL `NULL`. Both `notifications.data` and `audit_logs.metadata` columns are `NOT NULL DEFAULT '{}'`, so any caller passing a nil map (e.g. `adminsupplier.Reject`/`Approve` never set `Notification.Data`) failed the insert — surfaced to the client only as a generic 500 (`apperr` deliberately doesn't leak DB errors, and only panic-recovery middleware logs error detail, so this required reading the repository source directly rather than server logs). Fixed by defaulting nil maps to `map[string]any{}` in both repositories before insert, so the fix covers all current and future callers.
+- **Bug found and fixed during AC-3.d `docker compose up` verification**: `.env`'s `APP_R2_ENDPOINT=localhost:9000` doesn't resolve inside the Docker Compose network (container-internal `localhost` is the container itself, not the host or the `minio` service) — same class of issue already handled for `APP_DB_DSN`/`APP_REDIS_ADDR` via `environment:` overrides, but `APP_R2_ENDPOINT` was missed when Phase 3 added MinIO/R2 usage. Symptom: `api`/`worker` containers failed on startup with `storage: check bucket: ... dial tcp [::1]:9000: connect: connection refused`. Fixed by adding `APP_R2_ENDPOINT: minio:9000` and a `minio: condition: service_healthy` dependency to both services in `docker-compose.yml`. Re-verified: `docker compose up` brings all 5 containers healthy/running, api reports 61 handlers (not the earlier stale-image 7), no MinIO error.
