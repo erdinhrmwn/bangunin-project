@@ -21,6 +21,9 @@ type AuthRepository interface {
 	PutRefreshToken(ctx context.Context, token, userID string, ttl time.Duration) error
 	GetRefreshToken(ctx context.Context, token string) (string, error)
 	DeleteRefreshToken(ctx context.Context, token string) error
+	// RevokeAllRefreshTokens invalidates every refresh token issued to userID,
+	// e.g. on password reset (FR-2.6).
+	RevokeAllRefreshTokens(ctx context.Context, userID string) error
 
 	// BlacklistJTI marks an access token's jti revoked until it would have expired.
 	BlacklistJTI(ctx context.Context, jti string, ttl time.Duration) error

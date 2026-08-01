@@ -236,6 +236,9 @@ func (u *Usecase) ResetPassword(ctx context.Context, email, otp, newPassword str
 	if err := u.users.Update(ctx, usr); err != nil {
 		return err
 	}
+	if err := u.auth.RevokeAllRefreshTokens(ctx, usr.ID.String()); err != nil {
+		return err
+	}
 	return u.auth.DeleteOTP(ctx, otpPurposeReset, usr.ID.String())
 }
 

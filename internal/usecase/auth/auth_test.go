@@ -123,6 +123,21 @@ func TestLogin_WrongPasswordIncrementsFailCounter(t *testing.T) {
 	assert.Equal(t, "INVALID_CREDENTIALS", appErrCode(t, err))
 }
 
+// ResetPassword: success revokes all existing refresh token sessions.
+func TestResetPassword_RevokesSessions(t *testing.T) {
+	uc, users, authRepo, _ := newUsecase(t)
+	usr := &entity.User{ID: mustUUID(t), Email: "a@example.com"}
+	users.EXPECT().FindByEmail(mock.Anything, "a@example.com").Return(usr, nil)
+	authRepo.EXPECT().GetOTP(mock.Anything, "reset", usr.ID.String()).Return("123456", nil)
+	users.EXPECT().Update(mock.Anything, usr).Return(nil)
+	authRepo.EXPECT().RevokeAllRefreshTokens(mock.Anything, usr.ID.String()).Return(nil)
+	authRepo.EXPECT().DeleteOTP(mock.Anything, "reset", usr.ID.String()).Return(nil)
+
+	err := uc.ResetPassword(context.Background(), "a@example.com", "123456", "new-password1")
+
+	assert.NoError(t, err)
+}
+
 func mustUUID(t *testing.T) uuid.UUID {
 	t.Helper()
 	u, err := uuid.NewV7()

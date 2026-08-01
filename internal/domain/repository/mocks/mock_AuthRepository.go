@@ -670,6 +670,53 @@ func (_c *MockAuthRepository_PutRefreshToken_Call) RunAndReturn(run func(context
 	return _c
 }
 
+// RevokeAllRefreshTokens provides a mock function with given fields: ctx, userID
+func (_m *MockAuthRepository) RevokeAllRefreshTokens(ctx context.Context, userID string) error {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RevokeAllRefreshTokens")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAuthRepository_RevokeAllRefreshTokens_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RevokeAllRefreshTokens'
+type MockAuthRepository_RevokeAllRefreshTokens_Call struct {
+	*mock.Call
+}
+
+// RevokeAllRefreshTokens is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+func (_e *MockAuthRepository_Expecter) RevokeAllRefreshTokens(ctx interface{}, userID interface{}) *MockAuthRepository_RevokeAllRefreshTokens_Call {
+	return &MockAuthRepository_RevokeAllRefreshTokens_Call{Call: _e.mock.On("RevokeAllRefreshTokens", ctx, userID)}
+}
+
+func (_c *MockAuthRepository_RevokeAllRefreshTokens_Call) Run(run func(ctx context.Context, userID string)) *MockAuthRepository_RevokeAllRefreshTokens_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAuthRepository_RevokeAllRefreshTokens_Call) Return(_a0 error) *MockAuthRepository_RevokeAllRefreshTokens_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAuthRepository_RevokeAllRefreshTokens_Call) RunAndReturn(run func(context.Context, string) error) *MockAuthRepository_RevokeAllRefreshTokens_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockAuthRepository creates a new instance of MockAuthRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockAuthRepository(t interface {

@@ -46,7 +46,12 @@ func (r *AuthRepository) IncrResend(ctx context.Context, email string) (int64, e
 }
 
 func (r *AuthRepository) PutRefreshToken(ctx context.Context, token, userID string, ttl time.Duration) error {
-	return r.client.Set(ctx, "refresh:"+token, userID, ttl).Err()
+	pipe := r.client.TxPipeline()
+	pipe.Set(ctx, "refresh:"+token, userID, ttl)
+	pipe.SAdd(ctx, sessionsKey(userID), token)
+	pipe.Expire(ctx, sessionsKey(userID), ttl)
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
 func (r *AuthRepository) GetRefreshToken(ctx context.Context, token string) (string, error) {
@@ -58,7 +63,39 @@ func (r *AuthRepository) GetRefreshToken(ctx context.Context, token string) (str
 }
 
 func (r *AuthRepository) DeleteRefreshToken(ctx context.Context, token string) error {
-	return r.client.Del(ctx, "refresh:"+token).Err()
+	userID, err := r.GetRefreshToken(ctx, token)
+	if err != nil {
+		if err == errs.ErrNotFound {
+			return nil
+		}
+		return err
+	}
+	pipe := r.client.TxPipeline()
+	pipe.Del(ctx, "refresh:"+token)
+	pipe.SRem(ctx, sessionsKey(userID), token)
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+// RevokeAllRefreshTokens deletes every refresh token tracked in the user's
+// session set (FR-2.6: password reset invalidates existing sessions).
+func (r *AuthRepository) RevokeAllRefreshTokens(ctx context.Context, userID string) error {
+	tokens, err := r.client.SMembers(ctx, sessionsKey(userID)).Result()
+	if err != nil {
+		return err
+	}
+	if len(tokens) == 0 {
+		return nil
+	}
+	keys := make([]string, len(tokens))
+	for i, t := range tokens {
+		keys[i] = "refresh:" + t
+	}
+	pipe := r.client.TxPipeline()
+	pipe.Del(ctx, keys...)
+	pipe.Del(ctx, sessionsKey(userID))
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (r *AuthRepository) BlacklistJTI(ctx context.Context, jti string, ttl time.Duration) error {
@@ -90,6 +127,7 @@ func (r *AuthRepository) IsLoginBlocked(ctx context.Context, email, ip string) (
 
 func otpKey(purpose, userID string) string     { return "otp:" + purpose + ":" + userID }
 func otpFailKey(purpose, userID string) string { return "otp:" + purpose + ":" + userID + ":fail" }
+func sessionsKey(userID string) string         { return "sessions:" + userID }
 
 func incrWithTTL(ctx context.Context, client *redis.Client, key string, ttl time.Duration) (int64, error) {
 	n, err := client.Incr(ctx, key).Result()
