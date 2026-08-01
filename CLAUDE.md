@@ -87,3 +87,37 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete hanya jika perlu (default: tid
 - Kerjakan dalam potongan yang bisa dikompilasi & ditest — jangan tulis 50 file sekaligus tanpa pernah menjalankan build.
 - Jika ada ambiguitas terhadap dokumen ini, tanya dulu; jangan mengarang keputusan arsitektur baru.
 - Update file PROGRESS.md setiap menyelesaikan sub-task (checklist per fase).
+
+## 10. Git Workflow
+
+### Setup Awal
+
+1. Inisialisasi git repo jika belum ada. Branch utama: main.
+2. Commit pertama: seluruh dokumen perencanaan (CLAUDE.md, docs/) dengan pesan docs: initial project planning documents.
+3. Buat PROGRESS.md berisi checklist SEMUA FR dan AC dari Fase 1–7 (salin dari docs/requirements.md), semua belum tercentang. Commit: docs: add progress tracker.
+4. Jika remote GitHub belum terpasang, tanyakan URL repo. Verifikasi gh auth status berfungsi — jika tidak, beri tahu dan gunakan fallback.
+
+### Siklus Per Fase
+
+Untuk setiap fase N, jalankan urutan ini:
+
+- **A. BRANCH** — dari main terbaru, buat branch: feat/fase-N-<nama-singkat> (contoh: feat/fase-1-fondasi, feat/fase-2-auth-rbac). DILARANG commit langsung ke main. Satu branch = satu fase, jangan dicampur.
+- **B. RENCANA** — tampilkan rencana implementasi: daftar file yang akan dibuat/diubah, dipetakan ke setiap FR-N.x, plus urutan pengerjaannya sebagai daftar sub-task kecil. TUNGGU persetujuan sebelum menulis kode.
+- **C. IMPLEMENTASI** — kerjakan sub-task satu per satu:
+  - Setiap sub-task harus berakhir dalam kondisi bisa di-build (jalankan build + test terkait sebelum commit).
+  - Commit SETIAP sub-task selesai, sekecil apa pun. Jangan menumpuk banyak pekerjaan dalam satu commit.
+  - Format commit: conventional commits + rujukan requirement. Contoh: feat(auth): implement login with brute force guard [FR-2.3], test(checkout): add concurrent stock race test [AC-5.b], fix(order): reject illegal status transition [FR-5.8].
+  - Setiap FR selesai: centang di PROGRESS.md dan ikutkan dalam commit yang sama ("... + update progress").
+  - Jika menemui ambiguitas: berhenti, tanya, catat keputusannya di PROGRESS.md bagian "Keputusan".
+- **D. VERIFIKASI FASE** — jalankan seluruh AC-N.x. Fase selesai hanya jika: semua AC lolos, make lint && make test hijau, migrasi up/down bersih dari database kosong, dan docker compose up sehat. Laporkan status setiap AC satu per satu (lolos/gagal + bukti singkat).
+- **E. PULL REQUEST** — setelah semua AC lolos:
+  - Centang semua FR & AC fase di PROGRESS.md, commit terakhir: docs: complete fase N progress checklist.
+  - Push branch, lalu buat PR ke main via gh pr create dengan: judul "Fase N: <nama fase>", body berisi ringkasan perubahan, checklist FR & AC yang lolos, cara menguji manual, dan catatan keputusan yang diambil.
+  - Fallback jika gh/remote tidak tersedia: push branch saja (atau commit lokal), lalu tuliskan draft deskripsi PR ke file docs/pr/fase-N.md dan beri tahu untuk membuat PR manual.
+- **F. BERHENTI & TUNGGU** — jangan mulai fase berikutnya sebelum konfirmasi PR sudah di-review/merge. Setelah dikonfirmasi lanjut: checkout main, pull, ulangi siklus dari langkah A untuk fase N+1.
+
+### Aturan Tambahan
+
+- Jangan pernah force push, jangan pernah rebase/ubah history yang sudah di-push, jangan hapus branch sebelum PR di-merge.
+- Jangan commit file secret/.env — pastikan .gitignore benar sejak Fase 1.
+- Jika sesi terputus: baca CLAUDE.md + PROGRESS.md + git log --oneline -20 dan git status untuk memulihkan konteks, lanjutkan dari sub-task yang belum tercentang di branch fase yang sedang aktif.
