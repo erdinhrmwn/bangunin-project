@@ -5,8 +5,9 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
-	fiberredis "github.com/gofiber/storage/redis/v3"
 	"github.com/redis/go-redis/v9"
+
+	fiberredis "github.com/gofiber/storage/redis/v3"
 
 	"erdinhrmwn/bangunin/pkg/response"
 )

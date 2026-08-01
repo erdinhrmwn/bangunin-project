@@ -11,8 +11,9 @@ import (
 	"erdinhrmwn/bangunin/config"
 	"erdinhrmwn/bangunin/internal/delivery/http/handler"
 	"erdinhrmwn/bangunin/internal/infra/database"
-	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 	"erdinhrmwn/bangunin/pkg/logger"
+
+	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 )
 
 // Container holds process-wide dependencies, built once at startup.
