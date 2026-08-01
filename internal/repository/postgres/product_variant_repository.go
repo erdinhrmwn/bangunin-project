@@ -107,6 +107,26 @@ func (r *ProductVariantRepository) CountActiveByProductID(ctx context.Context, p
 	return n, nil
 }
 
+// ListBelowThreshold returns active variants with stock < threshold.
+func (r *ProductVariantRepository) ListBelowThreshold(ctx context.Context, threshold int) ([]*entity.ProductVariant, error) {
+	const q = selectVariantCols + `FROM product_variants WHERE is_active = true AND stock < $1 ORDER BY id`
+	rows, err := r.db.Query(ctx, q, threshold)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list variants below threshold: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*entity.ProductVariant
+	for rows.Next() {
+		v, err := scanVariant(rows)
+		if err != nil {
+			return nil, fmt.Errorf("postgres: scan product variant: %w", err)
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 // AdjustStock guards stock + delta >= 0 in the WHERE clause; a missing row
 // (guard failed or variant not found) surfaces as errs.ErrConflict.
 func (r *ProductVariantRepository) AdjustStock(ctx context.Context, variantID uuid.UUID, delta int) (int, error) {

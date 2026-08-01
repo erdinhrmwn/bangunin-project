@@ -104,7 +104,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	notificationUC := notificationusecase.New(notificationRepo)
 	categoryUC := categoryusecase.New(categoryRepo, rdb)
 	productUC := productusecase.New(productRepo, productVariantRepo, productImageRepo, rdb)
-	inventoryUC := inventoryusecase.New(productVariantRepo, stockMovementRepo)
+	inventoryUC := inventoryusecase.New(productVariantRepo, stockMovementRepo, supplierRepo, notificationRepo, rdb, cfg.Catalog.LowStockThreshold)
 	catalogUC := catalogusecase.New(productRepo, supplierRepo, rdb)
 
 	return &Container{

@@ -11,9 +11,13 @@ import (
 	"github.com/hibiken/asynq"
 
 	"erdinhrmwn/bangunin/config"
+	"erdinhrmwn/bangunin/internal/infra/database"
 	"erdinhrmwn/bangunin/internal/infra/grpcclient"
 	"erdinhrmwn/bangunin/internal/infra/queue"
+	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 	"erdinhrmwn/bangunin/internal/infra/storage"
+	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
+	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
 	"erdinhrmwn/bangunin/pkg/imageresize"
 	"erdinhrmwn/bangunin/pkg/logger"
 )
@@ -67,9 +71,34 @@ func main() {
 		return nil
 	})
 
-	// Scheduler is wired but intentionally empty — periodic jobs (e.g.
-	// notification:lowstock) are registered in their owning phase.
+	db, err := database.NewPool(context.Background(), cfg.DB)
+	if err != nil {
+		fatal(err)
+	}
+	defer db.Close()
+
+	rdb, err := infraredis.NewClient(context.Background(), cfg.Redis)
+	if err != nil {
+		fatal(err)
+	}
+	defer func() { _ = rdb.Close() }()
+
+	inventoryUC := inventoryusecase.New(
+		postgresrepo.NewProductVariantRepository(db),
+		postgresrepo.NewStockMovementRepository(db),
+		postgresrepo.NewSupplierRepository(db),
+		postgresrepo.NewNotificationRepository(db),
+		rdb,
+		cfg.Catalog.LowStockThreshold,
+	)
+	mux.HandleFunc(queue.TaskLowStockCheck, func(ctx context.Context, t *asynq.Task) error {
+		return inventoryUC.CheckLowStock(ctx)
+	})
+
 	scheduler := asynq.NewScheduler(redisOpt, nil)
+	if _, err := scheduler.Register("0 2 * * *", asynq.NewTask(queue.TaskLowStockCheck, nil)); err != nil {
+		fatal(err)
+	}
 	if err := scheduler.Start(); err != nil {
 		fatal(err)
 	}

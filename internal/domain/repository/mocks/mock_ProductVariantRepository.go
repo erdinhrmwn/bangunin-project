@@ -364,6 +364,65 @@ func (_c *MockProductVariantRepository_FindByIDAndSupplier_Call) RunAndReturn(ru
 	return _c
 }
 
+// ListBelowThreshold provides a mock function with given fields: ctx, threshold
+func (_m *MockProductVariantRepository) ListBelowThreshold(ctx context.Context, threshold int) ([]*entity.ProductVariant, error) {
+	ret := _m.Called(ctx, threshold)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListBelowThreshold")
+	}
+
+	var r0 []*entity.ProductVariant
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int) ([]*entity.ProductVariant, error)); ok {
+		return rf(ctx, threshold)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int) []*entity.ProductVariant); ok {
+		r0 = rf(ctx, threshold)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*entity.ProductVariant)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
+		r1 = rf(ctx, threshold)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductVariantRepository_ListBelowThreshold_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListBelowThreshold'
+type MockProductVariantRepository_ListBelowThreshold_Call struct {
+	*mock.Call
+}
+
+// ListBelowThreshold is a helper method to define mock.On call
+//   - ctx context.Context
+//   - threshold int
+func (_e *MockProductVariantRepository_Expecter) ListBelowThreshold(ctx interface{}, threshold interface{}) *MockProductVariantRepository_ListBelowThreshold_Call {
+	return &MockProductVariantRepository_ListBelowThreshold_Call{Call: _e.mock.On("ListBelowThreshold", ctx, threshold)}
+}
+
+func (_c *MockProductVariantRepository_ListBelowThreshold_Call) Run(run func(ctx context.Context, threshold int)) *MockProductVariantRepository_ListBelowThreshold_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int))
+	})
+	return _c
+}
+
+func (_c *MockProductVariantRepository_ListBelowThreshold_Call) Return(_a0 []*entity.ProductVariant, _a1 error) *MockProductVariantRepository_ListBelowThreshold_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductVariantRepository_ListBelowThreshold_Call) RunAndReturn(run func(context.Context, int) ([]*entity.ProductVariant, error)) *MockProductVariantRepository_ListBelowThreshold_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListByProductID provides a mock function with given fields: ctx, productID
 func (_m *MockProductVariantRepository) ListByProductID(ctx context.Context, productID uuid.UUID) ([]*entity.ProductVariant, error) {
 	ret := _m.Called(ctx, productID)

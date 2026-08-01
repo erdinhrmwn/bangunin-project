@@ -6,9 +6,10 @@ import "encoding/json"
 
 // Task type names.
 const (
-	TaskHeartbeat    = "system:heartbeat"
-	TaskEmailSend    = "email:send"
-	TaskMediaProcess = "media:process"
+	TaskHeartbeat     = "system:heartbeat"
+	TaskEmailSend     = "email:send"
+	TaskMediaProcess  = "media:process"
+	TaskLowStockCheck = "notification:lowstock"
 )
 
 // EmailSendPayload is TaskEmailSend's JSON payload.

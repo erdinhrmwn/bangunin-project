@@ -19,6 +19,7 @@ type Config struct {
 	Xendit     XenditConfig
 	RajaOngkir RajaOngkirConfig
 	R2         R2Config
+	Catalog    CatalogConfig
 }
 
 type AppConfig struct {
@@ -64,6 +65,10 @@ type R2Config struct {
 	Bucket    string
 	Endpoint  string
 	UseSSL    bool
+}
+
+type CatalogConfig struct {
+	LowStockThreshold int
 }
 
 // requiredKeys are the config keys that must be non-empty for the app to
@@ -130,6 +135,9 @@ func Load(configPath string) (*Config, error) {
 			Endpoint:  v.GetString("r2.endpoint"),
 			UseSSL:    v.GetBool("r2.use_ssl"),
 		},
+		Catalog: CatalogConfig{
+			LowStockThreshold: v.GetInt("catalog.low_stock_threshold"),
+		},
 	}
 
 	return cfg, nil
@@ -146,4 +154,5 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("jwt.access_ttl", "15m")
 	v.SetDefault("jwt.refresh_ttl", "168h")
 	v.SetDefault("rajaongkir.mock", true)
+	v.SetDefault("catalog.low_stock_threshold", 5)
 }
