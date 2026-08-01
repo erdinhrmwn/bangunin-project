@@ -1,0 +1,12 @@
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY services/payment/go.mod services/payment/go.sum ./services/payment/
+RUN cd services/payment && go mod download
+COPY . .
+RUN cd services/payment && CGO_ENABLED=0 go build -o /out/payment .
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=build /out/payment /usr/local/bin/payment
+ENTRYPOINT ["/usr/local/bin/payment"]

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package payment.v1;
+
+option go_package = "erdinhrmwn/bangunin/proto/payment/v1;paymentv1";
+
+// PaymentService is implemented by the standalone services/payment process
+// and consumed by the monolith via internal/infra/grpcclient (FR-5.5).
+service PaymentService {
+  rpc CreateInvoice(CreateInvoiceRequest) returns (CreateInvoiceResponse);
+}
+
+message CreateInvoiceRequest {
+  string checkout_group_id = 1;
+  double amount = 2;
+  string description = 3;
+}
+
+message CreateInvoiceResponse {
+  string invoice_id = 1;
+  string invoice_url = 2;
+}
