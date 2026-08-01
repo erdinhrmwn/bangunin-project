@@ -90,17 +90,19 @@ gen-proto: ## Generate gRPC code from .proto files
 		proto/notification/v1/notification.proto
 
 ## Docker
+DC := docker compose --env-file .env -f deploy/docker-compose.yml
+
 docker-up: ## Start local infra (postgres, redis, minio)
 	@echo "🐳 starting local infra..."
-	docker compose -f deploy/docker-compose.yml up -d
+	$(DC) up -d
 
 docker-down: ## Stop local infra
 	@echo "🐳 stopping local infra..."
-	docker compose -f deploy/docker-compose.yml down
+	$(DC) down
 
 docker-logs: ## Tail local infra logs
-	docker compose -f deploy/docker-compose.yml logs -f
+	$(DC) logs -f
 
 docker-build: ## Build api/worker images
 	@echo "🐳 building docker images..."
-	docker compose -f deploy/docker-compose.yml build
+	$(DC) build
