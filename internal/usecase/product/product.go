@@ -100,6 +100,14 @@ func (u *Usecase) UpdateProduct(ctx context.Context, supplierID, id uuid.UUID, i
 	return p, nil
 }
 
+func (u *Usecase) GetProduct(ctx context.Context, supplierID, id uuid.UUID) (*entity.Product, error) {
+	return u.products.FindBySupplierAndID(ctx, supplierID, id)
+}
+
+func (u *Usecase) ListProducts(ctx context.Context, supplierID uuid.UUID, page, perPage int) ([]*entity.Product, int, error) {
+	return u.products.ListBySupplier(ctx, supplierID, page, perPage)
+}
+
 // Publish moves a product from draft to active (FR-4.2). Requires at least
 // one active variant and one image.
 func (u *Usecase) Publish(ctx context.Context, supplierID, id uuid.UUID) (*entity.Product, error) {
