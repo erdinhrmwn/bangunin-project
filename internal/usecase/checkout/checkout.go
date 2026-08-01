@@ -16,8 +16,9 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/service"
-	infraredis "erdinhrmwn/bangunin/internal/repository/redis"
 	"erdinhrmwn/bangunin/pkg/apperr"
+
+	infraredis "erdinhrmwn/bangunin/internal/repository/redis"
 )
 
 const (

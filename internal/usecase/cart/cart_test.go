@@ -11,8 +11,9 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
-	cartusecase "erdinhrmwn/bangunin/internal/usecase/cart"
 	"erdinhrmwn/bangunin/pkg/apperr"
+
+	cartusecase "erdinhrmwn/bangunin/internal/usecase/cart"
 )
 
 func newUsecase(t *testing.T) (*cartusecase.Usecase, *mocks.MockCartRepository, *mocks.MockProductVariantRepository, *mocks.MockProductRepository) {

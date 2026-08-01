@@ -12,11 +12,12 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
-	svcmocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
-	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
 	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/hash"
 	"erdinhrmwn/bangunin/pkg/jwt"
+
+	svcmocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
+	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
 )
 
 func newUsecase(t *testing.T) (*authusecase.Usecase, *mocks.MockUserRepository, *mocks.MockAuthRepository, *svcmocks.MockEmailEnqueuer) {

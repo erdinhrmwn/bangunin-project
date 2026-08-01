@@ -12,9 +12,10 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
+	"erdinhrmwn/bangunin/pkg/apperr"
+
 	servicemocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
 	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
-	"erdinhrmwn/bangunin/pkg/apperr"
 )
 
 type deps struct {

@@ -18,14 +18,15 @@ import (
 	"erdinhrmwn/bangunin/internal/infra/database"
 	"erdinhrmwn/bangunin/internal/infra/grpcclient"
 	"erdinhrmwn/bangunin/internal/infra/queue"
-	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 	"erdinhrmwn/bangunin/internal/infra/storage"
+	"erdinhrmwn/bangunin/pkg/imageresize"
+	"erdinhrmwn/bangunin/pkg/logger"
+
+	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 	inventoryusecase "erdinhrmwn/bangunin/internal/usecase/inventory"
 	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
 	reportusecase "erdinhrmwn/bangunin/internal/usecase/report"
-	"erdinhrmwn/bangunin/pkg/imageresize"
-	"erdinhrmwn/bangunin/pkg/logger"
 )
 
 func main() {

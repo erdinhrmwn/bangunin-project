@@ -10,9 +10,10 @@ import (
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
-	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/hash"
+
+	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
 )
 
 func newUsecase(t *testing.T) (*userusecase.Usecase, *mocks.MockUserRepository) {

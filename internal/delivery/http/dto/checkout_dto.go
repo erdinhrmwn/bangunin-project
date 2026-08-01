@@ -6,8 +6,8 @@ type CheckoutItemRequest struct {
 }
 
 type CheckoutPreviewRequest struct {
-	AddressID string                 `json:"address_id" validate:"required,uuid"`
-	Items     []CheckoutItemRequest  `json:"items" validate:"required,min=1,dive"`
+	AddressID string                `json:"address_id" validate:"required,uuid"`
+	Items     []CheckoutItemRequest `json:"items" validate:"required,min=1,dive"`
 }
 
 type CheckoutGroupChoiceRequest struct {

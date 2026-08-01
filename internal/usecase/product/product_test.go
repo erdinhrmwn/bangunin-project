@@ -13,8 +13,9 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
-	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
 	"erdinhrmwn/bangunin/pkg/apperr"
+
+	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
 )
 
 func newUsecase(t *testing.T) (*productusecase.Usecase, *mocks.MockProductRepository, *mocks.MockProductVariantRepository, *mocks.MockProductImageRepository) {

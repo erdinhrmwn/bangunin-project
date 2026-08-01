@@ -125,9 +125,11 @@ func (r *AuthRepository) IsLoginBlocked(ctx context.Context, email, ip string) (
 	return n >= loginFailLimit, nil
 }
 
-func otpKey(purpose, userID string) string     { return "otp:" + purpose + ":" + userID }
+func otpKey(purpose, userID string) string { return "otp:" + purpose + ":" + userID }
+
 func otpFailKey(purpose, userID string) string { return "otp:" + purpose + ":" + userID + ":fail" }
-func sessionsKey(userID string) string         { return "sessions:" + userID }
+
+func sessionsKey(userID string) string { return "sessions:" + userID }
 
 func incrWithTTL(ctx context.Context, client *redis.Client, key string, ttl time.Duration) (int64, error) {
 	n, err := client.Incr(ctx, key).Result()
