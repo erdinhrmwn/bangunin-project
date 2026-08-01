@@ -75,23 +75,23 @@ FR & AC checklist per phase. Check off only after verification passes (build/tes
 ## PHASE 4 — Catalog
 
 ### Functional Requirements
-- [ ] FR-4.1 Category (admin CRUD + public tree + cache)
-- [ ] FR-4.2 Product (supplier CRUD)
-- [ ] FR-4.3 Variant
-- [ ] FR-4.4 Product images
-- [ ] FR-4.5 Stock & movements
-- [ ] FR-4.6 Public catalog (search + filter + cursor)
-- [ ] FR-4.7 Public detail (cache invalidate)
-- [ ] FR-4.8 search_vector trigger + GIN index
-- [ ] FR-4.9 Public store
-- [ ] FR-4.10 Low-stock job
+- [x] FR-4.1 Category (admin CRUD + public tree + cache)
+- [x] FR-4.2 Product (supplier CRUD)
+- [x] FR-4.3 Variant
+- [x] FR-4.4 Product images
+- [x] FR-4.5 Stock & movements
+- [x] FR-4.6 Public catalog (search + filter + cursor)
+- [x] FR-4.7 Public detail (cache invalidate)
+- [x] FR-4.8 search_vector trigger + GIN index
+- [x] FR-4.9 Public store
+- [x] FR-4.10 Low-stock job
 
 ### Acceptance Criteria
-- [ ] AC-4.a Published product appears & is found in search
-- [ ] AC-4.b Publish validation (image, weight_gram, unique SKU)
-- [ ] AC-4.c Stock adjustment (409 when negative, movements correct)
-- [ ] AC-4.d Suspended supplier doesn't appear; cache invalidates fast
-- [ ] AC-4.e Search integration test with testcontainers
+- [x] AC-4.a Published product appears & is found in search
+- [x] AC-4.b Publish validation (image, weight_gram, unique SKU)
+- [x] AC-4.c Stock adjustment (409 when negative, movements correct)
+- [x] AC-4.d Suspended supplier doesn't appear; cache invalidates fast
+- [x] AC-4.e Search integration test with testcontainers
 
 ---
 

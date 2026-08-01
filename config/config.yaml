@@ -33,3 +33,6 @@ r2:
   bucket: "bangunin-dev"
   endpoint: "localhost:9000"
   use_ssl: false
+
+catalog:
+  low_stock_threshold: 5

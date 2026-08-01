@@ -11,6 +11,7 @@ const (
 	NotificationTypeApproval    = "approval"
 	NotificationTypePayout      = "payout"
 	NotificationTypeSystem      = "system"
+	NotificationTypeLowStock    = "low_stock"
 )
 
 type Notification struct {

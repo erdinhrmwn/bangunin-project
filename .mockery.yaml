@@ -11,6 +11,11 @@ packages:
       SupplierBankAccountRepository:
       NotificationRepository:
       AuditLogRepository:
+      CategoryRepository:
+      ProductRepository:
+      ProductVariantRepository:
+      ProductImageRepository:
+      StockMovementRepository:
   erdinhrmwn/bangunin/internal/domain/service:
     interfaces:
       EmailEnqueuer:
