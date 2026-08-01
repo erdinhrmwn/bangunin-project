@@ -19,8 +19,9 @@ type Config struct {
 	Xendit     XenditConfig
 	RajaOngkir RajaOngkirConfig
 	R2         R2Config
-	Catalog    CatalogConfig
-	Payment    PaymentConfig
+	Catalog      CatalogConfig
+	Payment      PaymentConfig
+	Notification NotificationConfig
 }
 
 type AppConfig struct {
@@ -77,6 +78,12 @@ type CatalogConfig struct {
 type PaymentConfig struct {
 	GRPCAddr       string
 	InternalSecret string
+}
+
+// NotificationConfig configures the worker's gRPC client to
+// services/notification. No inbound callback — Mailjet doesn't webhook back.
+type NotificationConfig struct {
+	GRPCAddr string
 }
 
 // requiredKeys are the config keys that must be non-empty for the app to
@@ -149,6 +156,9 @@ func Load(configPath string) (*Config, error) {
 		Payment: PaymentConfig{
 			GRPCAddr:       v.GetString("payment.grpc_addr"),
 			InternalSecret: v.GetString("payment.internal_secret"),
+		},
+		Notification: NotificationConfig{
+			GRPCAddr: v.GetString("notification.grpc_addr"),
 		},
 	}
 
