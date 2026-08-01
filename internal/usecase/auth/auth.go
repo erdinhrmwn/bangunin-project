@@ -240,7 +240,7 @@ func (u *Usecase) ResetPassword(ctx context.Context, email, otp, newPassword str
 }
 
 func (u *Usecase) issueTokens(ctx context.Context, usr *entity.User) (*TokenPair, error) {
-	access, _, err := u.jwtSvc.GenerateAccess(usr.ID.String(), roleName(usr.RoleID))
+	access, _, err := u.jwtSvc.GenerateAccess(usr.ID.String(), entity.RoleName(usr.RoleID))
 	if err != nil {
 		return nil, err
 	}
@@ -287,17 +287,6 @@ func (u *Usecase) checkOTP(ctx context.Context, purpose, userID, otp string) err
 		return apperr.New("INVALID_OTP", "OTP is invalid or expired", 422)
 	}
 	return nil
-}
-
-func roleName(roleID int16) string {
-	switch roleID {
-	case entity.RoleAdminID:
-		return entity.RoleAdmin
-	case entity.RoleSupplierID:
-		return entity.RoleSupplier
-	default:
-		return entity.RoleUser
-	}
 }
 
 func randomOTP() (string, error) {

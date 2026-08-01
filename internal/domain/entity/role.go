@@ -16,3 +16,15 @@ type Role struct {
 	ID   int16
 	Name string
 }
+
+// RoleName maps a users.role_id FK to its slug, e.g. for JWT claims.
+func RoleName(roleID int16) string {
+	switch roleID {
+	case RoleAdminID:
+		return RoleAdmin
+	case RoleSupplierID:
+		return RoleSupplier
+	default:
+		return RoleUser
+	}
+}

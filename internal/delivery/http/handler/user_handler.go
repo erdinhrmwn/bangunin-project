@@ -89,19 +89,8 @@ func toUserResponse(usr *entity.User) dto.UserResponse {
 		Name:            usr.Name,
 		Email:           usr.Email,
 		Phone:           usr.Phone,
-		Role:            roleName(usr.RoleID),
+		Role:            entity.RoleName(usr.RoleID),
 		Status:          usr.Status,
 		EmailVerifiedAt: verifiedAt,
-	}
-}
-
-func roleName(roleID int16) string {
-	switch roleID {
-	case entity.RoleAdminID:
-		return entity.RoleAdmin
-	case entity.RoleSupplierID:
-		return entity.RoleSupplier
-	default:
-		return entity.RoleUser
 	}
 }
