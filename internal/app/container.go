@@ -133,9 +133,12 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	productUC := productusecase.New(productRepo, productVariantRepo, productImageRepo, rdb)
 	inventoryUC := inventoryusecase.New(productVariantRepo, stockMovementRepo, supplierRepo, notificationRepo, rdb, cfg.Catalog.LowStockThreshold)
 	catalogUC := catalogusecase.New(productRepo, supplierRepo, rdb)
+	ledgerRepo := postgresrepo.NewLedgerEntryRepository(db)
+	supplierBalanceRepo := postgresrepo.NewSupplierBalanceRepository(db)
 	orderUC := orderusecase.New(
 		orderRepo, orderHistoryRepo, shipmentRepo, checkoutGroupRepo, paymentRepo, stockReservationRepo,
 		productVariantRepo, supplierRepo, userRepo, notificationRepo, auditLogRepo, enqueuer,
+		ledgerRepo, supplierBalanceRepo,
 	)
 	cartUC := cartusecase.New(cartRepo, productVariantRepo, productRepo)
 	checkoutUC := checkoutusecase.New(

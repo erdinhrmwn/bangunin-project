@@ -114,6 +114,8 @@ func main() {
 		postgresrepo.NewNotificationRepository(db),
 		postgresrepo.NewAuditLogRepository(db),
 		enqueuer,
+		postgresrepo.NewLedgerEntryRepository(db),
+		postgresrepo.NewSupplierBalanceRepository(db),
 	)
 	mux.HandleFunc(queue.TaskOrderExpire, func(ctx context.Context, t *asynq.Task) error {
 		return orderUC.HandleExpire(ctx)
