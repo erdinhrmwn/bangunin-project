@@ -89,6 +89,67 @@ func (_c *MockPaymentGateway_CreateInvoice_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// Disburse provides a mock function with given fields: ctx, withdrawID, amount, bankCode, accountNumber, accountName
+func (_m *MockPaymentGateway) Disburse(ctx context.Context, withdrawID uuid.UUID, amount float64, bankCode string, accountNumber string, accountName string) (string, error) {
+	ret := _m.Called(ctx, withdrawID, amount, bankCode, accountNumber, accountName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Disburse")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, float64, string, string, string) (string, error)); ok {
+		return rf(ctx, withdrawID, amount, bankCode, accountNumber, accountName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, float64, string, string, string) string); ok {
+		r0 = rf(ctx, withdrawID, amount, bankCode, accountNumber, accountName)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, float64, string, string, string) error); ok {
+		r1 = rf(ctx, withdrawID, amount, bankCode, accountNumber, accountName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockPaymentGateway_Disburse_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Disburse'
+type MockPaymentGateway_Disburse_Call struct {
+	*mock.Call
+}
+
+// Disburse is a helper method to define mock.On call
+//   - ctx context.Context
+//   - withdrawID uuid.UUID
+//   - amount float64
+//   - bankCode string
+//   - accountNumber string
+//   - accountName string
+func (_e *MockPaymentGateway_Expecter) Disburse(ctx interface{}, withdrawID interface{}, amount interface{}, bankCode interface{}, accountNumber interface{}, accountName interface{}) *MockPaymentGateway_Disburse_Call {
+	return &MockPaymentGateway_Disburse_Call{Call: _e.mock.On("Disburse", ctx, withdrawID, amount, bankCode, accountNumber, accountName)}
+}
+
+func (_c *MockPaymentGateway_Disburse_Call) Run(run func(ctx context.Context, withdrawID uuid.UUID, amount float64, bankCode string, accountNumber string, accountName string)) *MockPaymentGateway_Disburse_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(float64), args[3].(string), args[4].(string), args[5].(string))
+	})
+	return _c
+}
+
+func (_c *MockPaymentGateway_Disburse_Call) Return(disbursementID string, err error) *MockPaymentGateway_Disburse_Call {
+	_c.Call.Return(disbursementID, err)
+	return _c
+}
+
+func (_c *MockPaymentGateway_Disburse_Call) RunAndReturn(run func(context.Context, uuid.UUID, float64, string, string, string) (string, error)) *MockPaymentGateway_Disburse_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockPaymentGateway creates a new instance of MockPaymentGateway. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockPaymentGateway(t interface {

@@ -65,6 +65,14 @@ func (r *ProductRepository) Update(ctx context.Context, p *entity.Product) error
 	return nil
 }
 
+func (r *ProductRepository) UpdateRating(ctx context.Context, productID uuid.UUID, avg float64, count int) error {
+	const q = `UPDATE products SET rating_avg = $2, rating_count = $3 WHERE id = $1`
+	if _, err := r.db.Exec(ctx, q, productID, avg, count); err != nil {
+		return fmt.Errorf("postgres: update product rating: %w", err)
+	}
+	return nil
+}
+
 func (r *ProductRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.Product, error) {
 	const q = selectProductCols + `FROM products WHERE id = $1`
 	return r.scanOne(ctx, q, id)
