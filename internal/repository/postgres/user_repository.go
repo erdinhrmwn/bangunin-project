@@ -49,6 +49,19 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*entity
 	return r.scanOne(ctx, q, email)
 }
 
+func (r *UserRepository) Update(ctx context.Context, u *entity.User) error {
+	const q = `
+		UPDATE users
+		SET name = $2, phone = $3, password_hash = $4, status = $5, email_verified_at = $6
+		WHERE id = $1
+	`
+	_, err := r.db.Exec(ctx, q, u.ID, u.Name, u.Phone, u.PasswordHash, u.Status, u.EmailVerifiedAt)
+	if err != nil {
+		return fmt.Errorf("postgres: update user: %w", err)
+	}
+	return nil
+}
+
 func (r *UserRepository) scanOne(ctx context.Context, query string, arg any) (*entity.User, error) {
 	var u entity.User
 	err := r.db.QueryRow(ctx, query, arg).Scan(
