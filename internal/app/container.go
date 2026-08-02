@@ -123,6 +123,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 	stockLock := redisrepo.NewStockLock(rdb)
+	quotesStore := redisrepo.NewKVStore(rdb)
 	shippingGW := rajaongkir.New(cfg.RajaOngkir)
 	paymentClient, err := grpcclient.NewPaymentClient(cfg.Payment.GRPCAddr)
 	if err != nil {
@@ -167,7 +168,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	adminReportUC := reportusecase.NewAdmin(orderRepo, ledgerRepo, supplierRepo, userRepo, enqueuer)
 	checkoutUC := checkoutusecase.New(
 		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
-		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
+		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock, quotesStore,
 	)
 
 	return &Container{

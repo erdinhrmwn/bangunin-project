@@ -2,8 +2,10 @@ package checkout_test
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -33,6 +35,7 @@ type deps struct {
 	suppliers      *mocks.MockSupplierRepository
 	shippingGW     *servicemocks.MockShippingGateway
 	paymentGW      *servicemocks.MockPaymentGateway
+	quotes         *infraredis.KVStore
 }
 
 // newUsecase wires a checkout.Usecase against mockery-mocked repos and a
@@ -57,13 +60,23 @@ func newUsecase(t *testing.T) (*checkoutusecase.Usecase, *deps) {
 		suppliers:      mocks.NewMockSupplierRepository(t),
 		shippingGW:     servicemocks.NewMockShippingGateway(t),
 		paymentGW:      servicemocks.NewMockPaymentGateway(t),
+		quotes:         infraredis.NewKVStore(rdb),
 	}
 	uc := checkoutusecase.New(
 		d.checkoutGroups, d.payments, d.reservations, d.addresses, d.carts,
 		d.variants, d.products, d.suppliers, d.shippingGW, d.paymentGW,
-		infraredis.NewStockLock(rdb),
+		infraredis.NewStockLock(rdb), d.quotes,
 	)
 	return uc, d
+}
+
+// seedQuote caches a valid shipping-cost quote for supplierID as Preview
+// would, so Confirm-exercising tests pass the new server-side cost check.
+func seedQuote(t *testing.T, d *deps, userID, addrID, supplierID uuid.UUID, cost float64) {
+	t.Helper()
+	data, err := json.Marshal(map[string][]float64{supplierID.String(): {cost}})
+	require.NoError(t, err)
+	require.NoError(t, d.quotes.Set(context.Background(), "checkout_quote:"+userID.String()+":"+addrID.String(), string(data), time.Minute))
 }
 
 func appErrCode(t *testing.T, err error) string {
@@ -182,6 +195,7 @@ func TestConfirm_Success_ClearsCartAndCreatesInvoice(t *testing.T) {
 	cartID, itemID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 	d.checkoutGroups.EXPECT().Confirm(mock.Anything, mock.AnythingOfType("*entity.CheckoutGroup"), mock.AnythingOfType("[]repository.ConfirmOrder")).
 		Run(func(_ context.Context, g *entity.CheckoutGroup, orders []repository.ConfirmOrder) {
@@ -211,6 +225,7 @@ func TestConfirm_InvoiceFailure_ReleasesReservationsAndMarksFailed(t *testing.T)
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 	d.checkoutGroups.EXPECT().Confirm(mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	d.paymentGW.EXPECT().CreateInvoice(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("", "", service.ErrShippingUnavailable)
@@ -232,6 +247,7 @@ func TestConfirm_StockConflictFromRepo_Propagates409(t *testing.T) {
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 	d.checkoutGroups.EXPECT().Confirm(mock.Anything, mock.Anything, mock.Anything).Return(errs.ErrConflict)
 
@@ -256,6 +272,7 @@ func TestConfirm_ConcurrentSameVariant_OnlyOneAcquiresLock(t *testing.T) {
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil).Twice()
+	seedQuote(t, d, userID, addrID, supplierID, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 
 	holding := make(chan struct{})
@@ -292,4 +309,33 @@ func TestConfirm_ConcurrentSameVariant_OnlyOneAcquiresLock(t *testing.T) {
 
 	require.NoError(t, errA, "the lock holder should complete successfully")
 	require.Equal(t, "CONFLICT", appErrCode(t, errB), "the second confirm should get 409 while the lock is held")
+}
+
+func TestConfirm_NoPriorQuote_RejectsAsExpired(t *testing.T) {
+	uc, d := newUsecase(t)
+	userID, addrID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	variantID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+
+	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+
+	_, err := uc.Confirm(context.Background(), userID, addrID, []checkoutusecase.ConfirmGroupChoice{
+		confirmChoice(supplierID, variantID, 1, 10000),
+	})
+
+	require.Equal(t, "QUOTE_EXPIRED", appErrCode(t, err))
+}
+
+func TestConfirm_ShippingCostMismatch_Rejected(t *testing.T) {
+	uc, d := newUsecase(t)
+	userID, addrID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	variantID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+
+	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, 10000)
+
+	_, err := uc.Confirm(context.Background(), userID, addrID, []checkoutusecase.ConfirmGroupChoice{
+		confirmChoice(supplierID, variantID, 1, 0),
+	})
+
+	require.Equal(t, "SHIPPING_COST_MISMATCH", appErrCode(t, err))
 }

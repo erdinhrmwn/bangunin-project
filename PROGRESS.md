@@ -223,3 +223,9 @@ Decision notes made when encountering ambiguity (filled in over time, per phase)
 - `1998e4c` perf(report): supplier/admin sales-summary usecases ran 3–5 independent repo queries sequentially — parallelized via `errgroup` (matches the existing `checkout.go` `Preview` pattern); `OrderRepository.PlatformSummary` combined two sequential queries against the same table/date-range into one `GROUP BY status` query.
 - `8b8b263` refactor(worker): `report:generate`/`report:generate-admin` Asynq handlers each inlined the same ~65-line upload→presign→notify→email tail — extracted into a shared `deliverReport` function (mirrors the `recordAndNotify` precedent in `adminsupplier.go`/`payout.go`).
 - `make lint && make test` (full `golangci-lint run ./...` + `go test ./...`, not per-file approximations) both green after all 10 fixes: 0 lint issues, all packages `ok` (deploy stack — postgres/redis/minio — running locally for the tests that need it).
+
+### Post-Phase-7 Hardening, round 2 (branch `fix/post-review-hardening-2`)
+
+Second `/code-review` (high effort) audit, 10 dimensions × 11 roles via parallel Explore subagents. Findings fixed one commit each, listed here as they land.
+
+- fix(checkout): `Confirm`'s `ShippingCost` was client-supplied (echoed back from `Preview` by the client, per its own doc comment) and flowed unvalidated into `grandTotal` → the exact Xendit invoice amount — a price-manipulation gap. Fixed by caching every valid per-supplier shipping cost (courier options + fleet rate) computed during `Preview` into Redis (`checkout_quote:<userID>:<addressID>`, 15min TTL, via the existing but previously-unwired `redis.KVStore`), and validating each `Confirm` choice's `ShippingCost` against that cache. **Decision**: reject on mismatch/expiry (`QUOTE_EXPIRED`/`SHIPPING_COST_MISMATCH`, both 422) rather than silently substituting the server value — simpler to reason about/test and gives the client explicit feedback.

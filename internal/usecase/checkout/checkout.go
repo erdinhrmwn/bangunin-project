@@ -6,6 +6,7 @@ package checkout
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -25,6 +26,10 @@ const (
 	reservationTTL = 2 * time.Hour
 	lockTTL        = 10 * time.Second
 	commissionRate = 0.04
+	// quoteTTL: ponytail: fixed window a client has to Confirm after
+	// Preview before the quoted shipping cost expires; promote to config
+	// if ops needs to tune it per-environment.
+	quoteTTL = 15 * time.Minute
 )
 
 type Usecase struct {
@@ -39,6 +44,7 @@ type Usecase struct {
 	shippingGW     service.ShippingGateway
 	paymentGW      service.PaymentGateway
 	lock           *infraredis.StockLock
+	quotes         *infraredis.KVStore
 }
 
 func New(
@@ -53,12 +59,52 @@ func New(
 	shippingGW service.ShippingGateway,
 	paymentGW service.PaymentGateway,
 	lock *infraredis.StockLock,
+	quotes *infraredis.KVStore,
 ) *Usecase {
 	return &Usecase{
 		checkoutGroups: checkoutGroups, payments: payments, reservations: reservations,
 		addresses: addresses, carts: carts, variants: variants, products: products,
 		suppliers: suppliers, shippingGW: shippingGW, paymentGW: paymentGW, lock: lock,
+		quotes: quotes,
 	}
+}
+
+// quoteKey scopes cached shipping quotes to the user + delivery address, so a
+// quote from one address can't validate a Confirm against another.
+func quoteKey(userID, addressID uuid.UUID) string {
+	return "checkout_quote:" + userID.String() + ":" + addressID.String()
+}
+
+// validateShippingCosts rejects any ConfirmGroupChoice whose client-supplied
+// ShippingCost doesn't match one of the costs Preview actually quoted for
+// that supplier (courier options or the fleet flat rate), closing the price-
+// manipulation gap where a client could set an arbitrary ShippingCost.
+func (u *Usecase) validateShippingCosts(ctx context.Context, userID, addressID uuid.UUID, choices []ConfirmGroupChoice) error {
+	raw, err := u.quotes.Get(ctx, quoteKey(userID, addressID))
+	if err != nil {
+		return apperr.New("QUOTE_EXPIRED", "Shipping quote expired, please preview checkout again", 422)
+	}
+	var quoted map[string][]float64
+	if err := json.Unmarshal([]byte(raw), &quoted); err != nil {
+		return fmt.Errorf("checkout: unmarshal cached shipping quote: %w", err)
+	}
+	for _, c := range choices {
+		costs, ok := quoted[c.SupplierID.String()]
+		if !ok {
+			return apperr.New("QUOTE_EXPIRED", "Shipping quote expired, please preview checkout again", 422)
+		}
+		match := false
+		for _, cost := range costs {
+			if cost == c.ShippingCost {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return apperr.New("SHIPPING_COST_MISMATCH", "Shipping cost does not match the previewed quote", 422)
+		}
+	}
+	return nil
 }
 
 // ItemRequest is one checkout line: a variant + desired qty.
@@ -189,11 +235,23 @@ func (u *Usecase) Preview(ctx context.Context, userID, addressID uuid.UUID, item
 	}
 
 	var grandTotal float64
+	quoted := make(map[string][]float64, len(groups))
 	for _, pg := range groups {
 		grandTotal += pg.Subtotal
 		if len(pg.ShippingOptions) > 0 {
 			grandTotal += pg.ShippingOptions[0].Cost
 		}
+		costs := make([]float64, 0, len(pg.ShippingOptions)+1)
+		for _, opt := range pg.ShippingOptions {
+			costs = append(costs, opt.Cost)
+		}
+		if pg.FleetOption != nil {
+			costs = append(costs, pg.FleetOption.Cost)
+		}
+		quoted[pg.SupplierID.String()] = costs
+	}
+	if data, err := json.Marshal(quoted); err == nil {
+		_ = u.quotes.Set(ctx, quoteKey(userID, addressID), string(data), quoteTTL)
 	}
 
 	return &PreviewResult{Groups: groups, GrandTotalEstimate: grandTotal}, nil
@@ -241,6 +299,10 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 	}
 	if addr.UserID != userID {
 		return nil, apperr.New("FORBIDDEN", "Address does not belong to you", 403)
+	}
+
+	if err := u.validateShippingCosts(ctx, userID, addressID, choices); err != nil {
+		return nil, err
 	}
 
 	variantIDs := make([]uuid.UUID, 0)
