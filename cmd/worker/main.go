@@ -143,7 +143,6 @@ func main() {
 		postgresrepo.NewCheckoutGroupRepository(db),
 		postgresrepo.NewPaymentRepository(db),
 		postgresrepo.NewStockReservationRepository(db),
-		postgresrepo.NewProductVariantRepository(db),
 		postgresrepo.NewSupplierRepository(db),
 		postgresrepo.NewUserRepository(db),
 		postgresrepo.NewNotificationRepository(db),

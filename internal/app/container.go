@@ -152,7 +152,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	supplierBalanceRepo := postgresrepo.NewSupplierBalanceRepository(db)
 	orderUC := orderusecase.New(
 		orderRepo, orderHistoryRepo, shipmentRepo, checkoutGroupRepo, paymentRepo, stockReservationRepo,
-		productVariantRepo, supplierRepo, userRepo, notificationRepo, auditLogRepo, enqueuer,
+		supplierRepo, userRepo, notificationRepo, auditLogRepo, enqueuer,
 		ledgerRepo, supplierBalanceRepo,
 	)
 	cartUC := cartusecase.New(cartRepo, productVariantRepo, productRepo)

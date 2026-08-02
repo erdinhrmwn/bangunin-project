@@ -10,6 +10,7 @@ import (
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
+	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
 	"erdinhrmwn/bangunin/pkg/apperr"
 
@@ -24,7 +25,6 @@ type deps struct {
 	checkouts    *mocks.MockCheckoutGroupRepository
 	payments     *mocks.MockPaymentRepository
 	reservations *mocks.MockStockReservationRepository
-	variants     *mocks.MockProductVariantRepository
 	suppliers    *mocks.MockSupplierRepository
 	users        *mocks.MockUserRepository
 	notify       *mocks.MockNotificationRepository
@@ -43,7 +43,6 @@ func newUsecase(t *testing.T) (*orderusecase.Usecase, *deps) {
 		checkouts:    mocks.NewMockCheckoutGroupRepository(t),
 		payments:     mocks.NewMockPaymentRepository(t),
 		reservations: mocks.NewMockStockReservationRepository(t),
-		variants:     mocks.NewMockProductVariantRepository(t),
 		suppliers:    mocks.NewMockSupplierRepository(t),
 		users:        mocks.NewMockUserRepository(t),
 		notify:       mocks.NewMockNotificationRepository(t),
@@ -54,7 +53,7 @@ func newUsecase(t *testing.T) (*orderusecase.Usecase, *deps) {
 	}
 	uc := orderusecase.New(
 		d.orders, d.histories, d.shipments, d.checkouts, d.payments, d.reservations,
-		d.variants, d.suppliers, d.users, d.notify, d.audit, d.email,
+		d.suppliers, d.users, d.notify, d.audit, d.email,
 		d.ledger, d.balances,
 	)
 	return uc, d
@@ -268,10 +267,15 @@ func TestCancel_PaidOrder_RestoresStockAndRecordsMockRefund(t *testing.T) {
 	d.reservations.EXPECT().ListByOrderID(mock.Anything, orderID).Return([]*entity.StockReservation{
 		{ID: resID, OrderID: orderID, VariantID: variantID, Qty: 3, Status: entity.StockReservationStatusConverted},
 	}, nil)
-	d.variants.EXPECT().AdjustStockWithMovement(mock.Anything, variantID, 3, mock.MatchedBy(func(m *entity.StockMovement) bool {
-		return m.Type == entity.MovementTypeAdjustment && m.Qty == 3
-	})).Return(10, nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, resID, entity.StockReservationStatusReleased).Return(nil)
+	d.reservations.EXPECT().ApplyAdjustments(mock.Anything, mock.MatchedBy(func(adjs []repository.ReservationAdjustment) bool {
+		if len(adjs) != 1 {
+			return false
+		}
+		a := adjs[0]
+		return a.ReservationID == resID && a.VariantID == variantID && a.Delta == 3 &&
+			a.Status == entity.StockReservationStatusReleased &&
+			a.Movement != nil && a.Movement.Type == entity.MovementTypeAdjustment && a.Movement.Qty == 3
+	})).Return(nil)
 
 	err := uc.Cancel(context.Background(), orderID, userID, entity.ActorTypeUser)
 
@@ -320,10 +324,15 @@ func TestHandlePaidCallback_MarksPaidConvertsReservationsAndNotifiesBoth(t *test
 	d.reservations.EXPECT().ListByOrderID(mock.Anything, orderID).Return([]*entity.StockReservation{
 		{ID: resID, OrderID: orderID, VariantID: variantID, Qty: 2, Status: entity.StockReservationStatusActive},
 	}, nil)
-	d.variants.EXPECT().AdjustStockWithMovement(mock.Anything, variantID, -2, mock.MatchedBy(func(m *entity.StockMovement) bool {
-		return m.Type == entity.MovementTypeReserveConvert
-	})).Return(8, nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, resID, entity.StockReservationStatusConverted).Return(nil)
+	d.reservations.EXPECT().ApplyAdjustments(mock.Anything, mock.MatchedBy(func(adjs []repository.ReservationAdjustment) bool {
+		if len(adjs) != 1 {
+			return false
+		}
+		a := adjs[0]
+		return a.ReservationID == resID && a.VariantID == variantID && a.Delta == -2 &&
+			a.Status == entity.StockReservationStatusConverted &&
+			a.Movement != nil && a.Movement.Type == entity.MovementTypeReserveConvert && a.Movement.Qty == -2
+	})).Return(nil)
 
 	err := uc.HandlePaidCallback(context.Background(), "inv-1")
 
@@ -346,8 +355,17 @@ func TestHandleExpire_ReleasesReservationAndExpiresOrderOnce(t *testing.T) {
 		{ID: res1, OrderID: orderID, VariantID: variantID, Status: entity.StockReservationStatusActive},
 		{ID: res2, OrderID: orderID, VariantID: variantID, Status: entity.StockReservationStatusActive},
 	}, nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, res1, entity.StockReservationStatusReleased).Return(nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, res2, entity.StockReservationStatusReleased).Return(nil)
+	d.reservations.EXPECT().ApplyAdjustments(mock.Anything, mock.MatchedBy(func(adjs []repository.ReservationAdjustment) bool {
+		if len(adjs) != 2 {
+			return false
+		}
+		for _, a := range adjs {
+			if a.Status != entity.StockReservationStatusReleased || a.Movement != nil || a.Delta != 0 {
+				return false
+			}
+		}
+		return adjs[0].ReservationID == res1 && adjs[1].ReservationID == res2
+	})).Return(nil)
 
 	err := uc.HandleExpire(context.Background())
 

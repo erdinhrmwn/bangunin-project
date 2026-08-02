@@ -27,7 +27,6 @@ type Usecase struct {
 	checkouts    repository.CheckoutGroupRepository
 	payments     repository.PaymentRepository
 	reservations repository.StockReservationRepository
-	variants     repository.ProductVariantRepository
 	suppliers    repository.SupplierRepository
 	users        repository.UserRepository
 	notify       repository.NotificationRepository
@@ -44,7 +43,6 @@ func New(
 	checkouts repository.CheckoutGroupRepository,
 	payments repository.PaymentRepository,
 	reservations repository.StockReservationRepository,
-	variants repository.ProductVariantRepository,
 	suppliers repository.SupplierRepository,
 	users repository.UserRepository,
 	notify repository.NotificationRepository,
@@ -55,7 +53,7 @@ func New(
 ) *Usecase {
 	return &Usecase{
 		orders: orders, histories: histories, shipments: shipments, checkouts: checkouts,
-		payments: payments, reservations: reservations, variants: variants, suppliers: suppliers,
+		payments: payments, reservations: reservations, suppliers: suppliers,
 		users: users, notify: notify, audit: audit, email: email,
 		ledger: ledger, balances: balances,
 	}
@@ -285,23 +283,24 @@ func (u *Usecase) restoreStock(ctx context.Context, orderID uuid.UUID, wasPaid b
 	if err != nil {
 		return err
 	}
+	var adjustments []repository.ReservationAdjustment
 	for _, r := range reservations {
 		if r.Status != entity.StockReservationStatusActive && r.Status != entity.StockReservationStatusConverted {
 			continue
 		}
+		adj := repository.ReservationAdjustment{
+			ReservationID: r.ID, VariantID: r.VariantID, Status: entity.StockReservationStatusReleased,
+		}
 		if wasPaid && r.Status == entity.StockReservationStatusConverted {
-			if _, err := u.variants.AdjustStockWithMovement(ctx, r.VariantID, r.Qty, &entity.StockMovement{
+			adj.Delta = r.Qty
+			adj.Movement = &entity.StockMovement{
 				ID: mustNewV7(), VariantID: r.VariantID, Type: entity.MovementTypeAdjustment,
 				Qty: r.Qty, RefType: entity.RefTypeOrder, RefID: &orderID, Note: "Order cancelled, stock restored",
-			}); err != nil {
-				return err
 			}
 		}
-		if err := u.reservations.UpdateStatus(ctx, r.ID, entity.StockReservationStatusReleased); err != nil {
-			return err
-		}
+		adjustments = append(adjustments, adj)
 	}
-	return nil
+	return u.reservations.ApplyAdjustments(ctx, adjustments)
 }
 
 // HandlePaidCallback applies FR-5.6, idempotent on the invoice already being
@@ -352,21 +351,21 @@ func (u *Usecase) convertReservations(ctx context.Context, orderID uuid.UUID) er
 	if err != nil {
 		return err
 	}
+	var adjustments []repository.ReservationAdjustment
 	for _, r := range reservations {
 		if r.Status != entity.StockReservationStatusActive {
 			continue
 		}
-		if _, err := u.variants.AdjustStockWithMovement(ctx, r.VariantID, -r.Qty, &entity.StockMovement{
-			ID: mustNewV7(), VariantID: r.VariantID, Type: entity.MovementTypeReserveConvert,
-			Qty: -r.Qty, RefType: entity.RefTypeOrder, RefID: &orderID, Note: "Reservation converted on payment",
-		}); err != nil {
-			return err
-		}
-		if err := u.reservations.UpdateStatus(ctx, r.ID, entity.StockReservationStatusConverted); err != nil {
-			return err
-		}
+		adjustments = append(adjustments, repository.ReservationAdjustment{
+			ReservationID: r.ID, VariantID: r.VariantID, Delta: -r.Qty,
+			Status: entity.StockReservationStatusConverted,
+			Movement: &entity.StockMovement{
+				ID: mustNewV7(), VariantID: r.VariantID, Type: entity.MovementTypeReserveConvert,
+				Qty: -r.Qty, RefType: entity.RefTypeOrder, RefID: &orderID, Note: "Reservation converted on payment",
+			},
+		})
 	}
-	return nil
+	return u.reservations.ApplyAdjustments(ctx, adjustments)
 }
 
 // HandleExpire runs the order:expire job (FR-5.7): releases reservations for

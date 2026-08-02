@@ -8,6 +8,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	repository "erdinhrmwn/bangunin/internal/domain/repository"
+
 	uuid "github.com/google/uuid"
 )
 
@@ -22,6 +24,53 @@ type MockStockReservationRepository_Expecter struct {
 
 func (_m *MockStockReservationRepository) EXPECT() *MockStockReservationRepository_Expecter {
 	return &MockStockReservationRepository_Expecter{mock: &_m.Mock}
+}
+
+// ApplyAdjustments provides a mock function with given fields: ctx, adjustments
+func (_m *MockStockReservationRepository) ApplyAdjustments(ctx context.Context, adjustments []repository.ReservationAdjustment) error {
+	ret := _m.Called(ctx, adjustments)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ApplyAdjustments")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []repository.ReservationAdjustment) error); ok {
+		r0 = rf(ctx, adjustments)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStockReservationRepository_ApplyAdjustments_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApplyAdjustments'
+type MockStockReservationRepository_ApplyAdjustments_Call struct {
+	*mock.Call
+}
+
+// ApplyAdjustments is a helper method to define mock.On call
+//   - ctx context.Context
+//   - adjustments []repository.ReservationAdjustment
+func (_e *MockStockReservationRepository_Expecter) ApplyAdjustments(ctx interface{}, adjustments interface{}) *MockStockReservationRepository_ApplyAdjustments_Call {
+	return &MockStockReservationRepository_ApplyAdjustments_Call{Call: _e.mock.On("ApplyAdjustments", ctx, adjustments)}
+}
+
+func (_c *MockStockReservationRepository_ApplyAdjustments_Call) Run(run func(ctx context.Context, adjustments []repository.ReservationAdjustment)) *MockStockReservationRepository_ApplyAdjustments_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]repository.ReservationAdjustment))
+	})
+	return _c
+}
+
+func (_c *MockStockReservationRepository_ApplyAdjustments_Call) Return(_a0 error) *MockStockReservationRepository_ApplyAdjustments_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStockReservationRepository_ApplyAdjustments_Call) RunAndReturn(run func(context.Context, []repository.ReservationAdjustment) error) *MockStockReservationRepository_ApplyAdjustments_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Create provides a mock function with given fields: ctx, r
