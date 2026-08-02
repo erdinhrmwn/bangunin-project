@@ -91,6 +91,14 @@ type NotificationConfig struct {
 // start. Fail-fast here beats a cryptic nil-pointer panic three layers deep.
 var requiredKeys = []string{"db.dsn", "redis.addr", "jwt.secret"}
 
+// placeholderSecret is the dev-only default committed in config.yaml/.env.example.
+// Outside development, running with it means the operator forgot to set a real
+// secret — fail fast instead of shipping a known, publicly-visible value.
+const placeholderSecret = "change-me-in-env"
+
+// secretKeys are the config keys checked against placeholderSecret.
+var secretKeys = []string{"jwt.secret", "payment.internal_secret"}
+
 // Load reads config.yaml from configPath, applies APP_-prefixed env
 // overrides, and fails fast if a required key is missing.
 func Load(configPath string) (*Config, error) {
@@ -111,6 +119,14 @@ func Load(configPath string) (*Config, error) {
 	for _, key := range requiredKeys {
 		if v.GetString(key) == "" {
 			return nil, fmt.Errorf("config: required key %q is empty", key)
+		}
+	}
+
+	if env := v.GetString("app.env"); env != "development" {
+		for _, key := range secretKeys {
+			if v.GetString(key) == placeholderSecret {
+				return nil, fmt.Errorf("config: %q is still the placeholder value outside development", key)
+			}
 		}
 	}
 
