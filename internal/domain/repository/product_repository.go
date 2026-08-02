@@ -53,6 +53,9 @@ type ProductRepository interface {
 	// separate from Update so review creation doesn't touch unrelated columns.
 	UpdateRating(ctx context.Context, productID uuid.UUID, avg float64, count int) error
 	FindByID(ctx context.Context, id uuid.UUID) (*entity.Product, error)
+	// FindByIDs batches lookup for N products in one query; result order is
+	// not guaranteed to match ids, and missing ids are silently omitted.
+	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.Product, error)
 	FindBySlug(ctx context.Context, slug string) (*entity.Product, error)
 	FindBySupplierAndID(ctx context.Context, supplierID, id uuid.UUID) (*entity.Product, error)
 	ListBySupplier(ctx context.Context, supplierID uuid.UUID, page, perPage int) ([]*entity.Product, int, error)

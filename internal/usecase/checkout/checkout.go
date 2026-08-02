@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
+	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/service"
 	"erdinhrmwn/bangunin/pkg/apperr"
@@ -141,6 +142,39 @@ type PreviewResult struct {
 	GrandTotalEstimate float64
 }
 
+// batchFetchVariantsAndProducts resolves every variant referenced by items
+// (and its parent product) in two queries instead of one FindByID pair per
+// item, avoiding N+1 lookups during Preview/Confirm.
+func (u *Usecase) batchFetchVariantsAndProducts(ctx context.Context, items []ItemRequest) (map[uuid.UUID]*entity.ProductVariant, map[uuid.UUID]*entity.Product, error) {
+	variantIDs := make([]uuid.UUID, len(items))
+	for i, it := range items {
+		variantIDs[i] = it.VariantID
+	}
+	variants, err := u.variants.FindByIDs(ctx, variantIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	variantByID := make(map[uuid.UUID]*entity.ProductVariant, len(variants))
+	productIDs := make([]uuid.UUID, 0, len(variants))
+	seenProduct := make(map[uuid.UUID]bool, len(variants))
+	for _, v := range variants {
+		variantByID[v.ID] = v
+		if !seenProduct[v.ProductID] {
+			seenProduct[v.ProductID] = true
+			productIDs = append(productIDs, v.ProductID)
+		}
+	}
+	products, err := u.products.FindByIDs(ctx, productIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	productByID := make(map[uuid.UUID]*entity.Product, len(products))
+	for _, p := range products {
+		productByID[p.ID] = p
+	}
+	return variantByID, productByID, nil
+}
+
 // Preview groups requested items per supplier, validates each (stock,
 // min-order, active, supplier approved), and resolves shipping quotes in
 // parallel per group (FR-5.3).
@@ -162,10 +196,15 @@ func (u *Usecase) Preview(ctx context.Context, userID, addressID uuid.UUID, item
 	buckets := make(map[uuid.UUID]*supplierBucket)
 	var order []uuid.UUID
 
+	variantByID, productByID, err := u.batchFetchVariantsAndProducts(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, it := range items {
-		v, err := u.variants.FindByID(ctx, it.VariantID)
-		if err != nil {
-			return nil, err
+		v, ok := variantByID[it.VariantID]
+		if !ok {
+			return nil, errs.ErrNotFound
 		}
 		if !v.IsActive {
 			return nil, apperr.New("VARIANT_INACTIVE", fmt.Sprintf("Variant %s is inactive", v.Name), 422)
@@ -176,9 +215,9 @@ func (u *Usecase) Preview(ctx context.Context, userID, addressID uuid.UUID, item
 		if v.Stock < it.Qty {
 			return nil, apperr.New("OUT_OF_STOCK", fmt.Sprintf("Variant %s is out of stock", v.Name), 422)
 		}
-		p, err := u.products.FindByID(ctx, v.ProductID)
-		if err != nil {
-			return nil, err
+		p, ok := productByID[v.ProductID]
+		if !ok {
+			return nil, errs.ErrNotFound
 		}
 		if p.Status != entity.ProductStatusActive {
 			return nil, apperr.New("PRODUCT_INACTIVE", fmt.Sprintf("Product %s is not active", p.Name), 422)
@@ -345,6 +384,15 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 		PostalCode: addr.PostalCode, AddressDetail: addr.AddressDetail,
 	}
 
+	allItems := make([]ItemRequest, 0, len(variantIDs))
+	for _, c := range choices {
+		allItems = append(allItems, c.Items...)
+	}
+	variantByID, productByID, err := u.batchFetchVariantsAndProducts(ctx, allItems)
+	if err != nil {
+		return nil, err
+	}
+
 	var grandTotal float64
 	confirmOrders := make([]repository.ConfirmOrder, 0, len(choices))
 	for _, c := range choices {
@@ -361,13 +409,13 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 		items := make([]*entity.OrderItem, 0, len(c.Items))
 		reservations := make([]*entity.StockReservation, 0, len(c.Items))
 		for _, it := range c.Items {
-			v, err := u.variants.FindByID(ctx, it.VariantID)
-			if err != nil {
-				return nil, err
+			v, ok := variantByID[it.VariantID]
+			if !ok {
+				return nil, errs.ErrNotFound
 			}
-			p, err := u.products.FindByID(ctx, v.ProductID)
-			if err != nil {
-				return nil, err
+			p, ok := productByID[v.ProductID]
+			if !ok {
+				return nil, errs.ErrNotFound
 			}
 			subtotal += v.Price * float64(it.Qty)
 

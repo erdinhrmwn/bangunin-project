@@ -98,7 +98,8 @@ func TestPreview_VariantInactive_Rejected(t *testing.T) {
 	uc, d := newUsecase(t)
 	userID, addrID, variantID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{ID: variantID, IsActive: false}, nil)
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{ID: variantID, IsActive: false}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return(nil, nil)
 
 	_, err := uc.Preview(context.Background(), userID, addrID, []checkoutusecase.ItemRequest{{VariantID: variantID, Qty: 1}})
 
@@ -109,7 +110,8 @@ func TestPreview_OutOfStock_Rejected(t *testing.T) {
 	uc, d := newUsecase(t)
 	userID, addrID, variantID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{ID: variantID, IsActive: true, MinOrderQty: 1, Stock: 1}, nil)
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{ID: variantID, IsActive: true, MinOrderQty: 1, Stock: 1}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return(nil, nil)
 
 	_, err := uc.Preview(context.Background(), userID, addrID, []checkoutusecase.ItemRequest{{VariantID: variantID, Qty: 2}})
 
@@ -120,10 +122,10 @@ func TestPreview_SupplierNotApproved_Rejected(t *testing.T) {
 	uc, d := newUsecase(t)
 	userID, addrID, variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{
 		ID: variantID, ProductID: productID, SupplierID: supplierID, IsActive: true, MinOrderQty: 1, Stock: 10,
-	}, nil)
-	d.products.EXPECT().FindByID(mock.Anything, productID).Return(&entity.Product{ID: productID, Status: entity.ProductStatusActive}, nil)
+	}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.Product{{ID: productID, Status: entity.ProductStatusActive}}, nil)
 	d.suppliers.EXPECT().FindByID(mock.Anything, supplierID).Return(&entity.Supplier{ID: supplierID, Status: entity.SupplierStatusPending}, nil)
 
 	_, err := uc.Preview(context.Background(), userID, addrID, []checkoutusecase.ItemRequest{{VariantID: variantID, Qty: 1}})
@@ -137,11 +139,11 @@ func TestPreview_Success_GroupsPerSupplierWithShippingAndFleet(t *testing.T) {
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID, CityID: 200}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{
 		ID: variantID, ProductID: productID, SupplierID: supplierID, IsActive: true,
 		MinOrderQty: 1, Stock: 10, Price: 50000, WeightGram: 1000,
-	}, nil)
-	d.products.EXPECT().FindByID(mock.Anything, productID).Return(&entity.Product{ID: productID, Name: "Semen", Status: entity.ProductStatusActive}, nil)
+	}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.Product{{ID: productID, Name: "Semen", Status: entity.ProductStatusActive}}, nil)
 	d.suppliers.EXPECT().FindByID(mock.Anything, supplierID).Return(&entity.Supplier{
 		ID: supplierID, StoreName: "Toko A", Status: entity.SupplierStatusApproved,
 		OriginCityID: 100, OwnFleetEnabled: true, FleetFlatRate: 25000,
@@ -172,10 +174,10 @@ func confirmChoice(supplierID, variantID uuid.UUID, qty int, shippingCost float6
 }
 
 func stubConfirmItemLookups(d *deps, variantID, productID, supplierID uuid.UUID) {
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{
+	d.variants.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.ProductVariant{{
 		ID: variantID, ProductID: productID, SupplierID: supplierID, Price: 50000, WeightGram: 1000,
-	}, nil)
-	d.products.EXPECT().FindByID(mock.Anything, productID).Return(&entity.Product{ID: productID, Name: "Semen"}, nil)
+	}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.Product{{ID: productID, Name: "Semen"}}, nil)
 }
 
 func TestConfirm_ForbiddenWhenAddressNotOwned(t *testing.T) {

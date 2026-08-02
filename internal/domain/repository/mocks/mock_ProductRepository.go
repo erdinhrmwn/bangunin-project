@@ -132,6 +132,65 @@ func (_c *MockProductRepository_FindByID_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// FindByIDs provides a mock function with given fields: ctx, ids
+func (_m *MockProductRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.Product, error) {
+	ret := _m.Called(ctx, ids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByIDs")
+	}
+
+	var r0 []*entity.Product
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []uuid.UUID) ([]*entity.Product, error)); ok {
+		return rf(ctx, ids)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []uuid.UUID) []*entity.Product); ok {
+		r0 = rf(ctx, ids)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*entity.Product)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
+		r1 = rf(ctx, ids)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductRepository_FindByIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByIDs'
+type MockProductRepository_FindByIDs_Call struct {
+	*mock.Call
+}
+
+// FindByIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ids []uuid.UUID
+func (_e *MockProductRepository_Expecter) FindByIDs(ctx interface{}, ids interface{}) *MockProductRepository_FindByIDs_Call {
+	return &MockProductRepository_FindByIDs_Call{Call: _e.mock.On("FindByIDs", ctx, ids)}
+}
+
+func (_c *MockProductRepository_FindByIDs_Call) Run(run func(ctx context.Context, ids []uuid.UUID)) *MockProductRepository_FindByIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_FindByIDs_Call) Return(_a0 []*entity.Product, _a1 error) *MockProductRepository_FindByIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductRepository_FindByIDs_Call) RunAndReturn(run func(context.Context, []uuid.UUID) ([]*entity.Product, error)) *MockProductRepository_FindByIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindBySlug provides a mock function with given fields: ctx, slug
 func (_m *MockProductRepository) FindBySlug(ctx context.Context, slug string) (*entity.Product, error) {
 	ret := _m.Called(ctx, slug)
