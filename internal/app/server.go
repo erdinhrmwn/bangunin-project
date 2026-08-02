@@ -22,25 +22,25 @@ func (c *Container) Run() error {
 	app := fiber.New()
 
 	exporterCtx, cancelExporter := context.WithCancel(context.Background())
-	stopExporter := middleware.StartQueueSizeExporter(exporterCtx, asynq.RedisClientOpt{Addr: c.Config.Redis.Addr, Password: c.Config.Redis.Password, DB: c.Config.Redis.DB}, 15*time.Second)
+	stopExporter := middleware.StartQueueSizeExporter(exporterCtx, asynq.RedisClientOpt{Addr: c.config.Redis.Addr, Password: c.config.Redis.Password, DB: c.config.Redis.DB}, 15*time.Second)
 	defer stopExporter()
 	defer cancelExporter()
 
-	app.Use(middleware.Recover(c.Logger))
+	app.Use(middleware.Recover(c.logger))
 	app.Get("/metrics", middleware.MetricsHandler())
 	app.Use(middleware.RequestID())
-	app.Use(middleware.RequestLog(c.Logger))
+	app.Use(middleware.RequestLog(c.logger))
 	app.Use(middleware.Metrics)
 	app.Use(helmet.New())
 	app.Use(middleware.BodyLimit)
 	app.Use(middleware.CORS(nil))
-	app.Use(middleware.RateLimit(c.Redis))
+	app.Use(middleware.RateLimit(c.redis))
 
-	route.Register(app, c.Health, c.Auth, c.User, c.Supplier, c.Media, c.AdminSupplier, c.Notification, c.Category, c.Product, c.Inventory, c.Catalog, c.Internal, c.Address, c.Cart, c.Checkout, c.Order, c.Shipment, c.Payout, c.Review, c.Wishlist, c.Banner, c.Report, c.AdminReport, c.JWT, c.AuthRepo, c.SupplierRepo, c.Redis)
+	route.Register(app, c.health, c.auth, c.user, c.supplier, c.media, c.adminSupplier, c.notification, c.category, c.product, c.inventory, c.catalog, c.internal, c.address, c.cart, c.checkout, c.order, c.shipment, c.payout, c.review, c.wishlist, c.banner, c.report, c.adminReport, c.jwt, c.authRepo, c.supplierRepo, c.redis)
 
 	errCh := make(chan error, 1)
 	go func() {
-		addr := fmt.Sprintf(":%d", c.Config.App.Port)
+		addr := fmt.Sprintf(":%d", c.config.App.Port)
 		if err := app.Listen(addr); err != nil {
 			errCh <- err
 		}
@@ -53,7 +53,7 @@ func (c *Container) Run() error {
 	case err := <-errCh:
 		return err
 	case <-sigCh:
-		c.Logger.Info().Msg("shutting down")
+		c.logger.Info().Msg("shutting down")
 	}
 
 	return app.ShutdownWithTimeout(10 * time.Second)

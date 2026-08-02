@@ -43,41 +43,43 @@ import (
 	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 )
 
-// Container holds process-wide dependencies, built once at startup.
+// Container holds process-wide dependencies, built once at startup. Fields
+// are unexported — Container is only consumed within package app (server.go);
+// callers outside the package use only NewContainer, Run, and Close.
 type Container struct {
-	Config *config.Config
-	Logger zerolog.Logger
-	DB     *pgxpool.Pool
-	Redis  *redis.Client
+	config *config.Config
+	logger zerolog.Logger
+	db     *pgxpool.Pool
+	redis  *redis.Client
 
-	JWT          *jwt.Service
-	AuthRepo     repository.AuthRepository
-	SupplierRepo repository.SupplierRepository
-	Enqueuer     *queue.Enqueuer
+	jwt          *jwt.Service
+	authRepo     repository.AuthRepository
+	supplierRepo repository.SupplierRepository
+	enqueuer     *queue.Enqueuer
 
-	Health        *handler.HealthHandler
-	Auth          *handler.AuthHandler
-	User          *handler.UserHandler
-	Supplier      *handler.SupplierHandler
-	Media         *handler.MediaHandler
-	AdminSupplier *handler.AdminSupplierHandler
-	Notification  *handler.NotificationHandler
-	Category      *handler.CategoryHandler
-	Product       *handler.ProductHandler
-	Inventory     *handler.InventoryHandler
-	Catalog       *handler.CatalogHandler
-	Internal      *handler.InternalHandler
-	Address       *handler.AddressHandler
-	Cart          *handler.CartHandler
-	Checkout      *handler.CheckoutHandler
-	Order         *handler.OrderHandler
-	Shipment      *handler.ShipmentHandler
-	Payout        *handler.PayoutHandler
-	Review        *handler.ReviewHandler
-	Wishlist      *handler.WishlistHandler
-	Banner        *handler.BannerHandler
-	Report        *handler.ReportHandler
-	AdminReport   *handler.AdminReportHandler
+	health        *handler.HealthHandler
+	auth          *handler.AuthHandler
+	user          *handler.UserHandler
+	supplier      *handler.SupplierHandler
+	media         *handler.MediaHandler
+	adminSupplier *handler.AdminSupplierHandler
+	notification  *handler.NotificationHandler
+	category      *handler.CategoryHandler
+	product       *handler.ProductHandler
+	inventory     *handler.InventoryHandler
+	catalog       *handler.CatalogHandler
+	internal      *handler.InternalHandler
+	address       *handler.AddressHandler
+	cart          *handler.CartHandler
+	checkout      *handler.CheckoutHandler
+	order         *handler.OrderHandler
+	shipment      *handler.ShipmentHandler
+	payout        *handler.PayoutHandler
+	review        *handler.ReviewHandler
+	wishlist      *handler.WishlistHandler
+	banner        *handler.BannerHandler
+	report        *handler.ReportHandler
+	adminReport   *handler.AdminReportHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -172,43 +174,43 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	)
 
 	return &Container{
-		Config:        cfg,
-		Logger:        log,
-		DB:            db,
-		Redis:         rdb,
-		JWT:           jwtSvc,
-		AuthRepo:      authRepo,
-		SupplierRepo:  supplierRepo,
-		Enqueuer:      enqueuer,
-		Health:        handler.NewHealthHandler(db, rdb, "1.0.0"),
-		Auth:          handler.NewAuthHandler(authUC, jwtSvc),
-		User:          handler.NewUserHandler(userUC),
-		Supplier:      handler.NewSupplierHandler(supplierUC),
-		Media:         handler.NewMediaHandler(mediaUC),
-		AdminSupplier: handler.NewAdminSupplierHandler(adminSupplierUC),
-		Notification:  handler.NewNotificationHandler(notificationUC),
-		Category:      handler.NewCategoryHandler(categoryUC),
-		Product:       handler.NewProductHandler(productUC, supplierRepo),
-		Inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
-		Catalog:       handler.NewCatalogHandler(catalogUC, wishlistUC),
-		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, cfg.Payment.InternalIPAllowlist, orderUC),
-		Address:       handler.NewAddressHandler(userUC),
-		Cart:          handler.NewCartHandler(cartUC),
-		Checkout:      handler.NewCheckoutHandler(checkoutUC),
-		Order:         handler.NewOrderHandler(orderUC, supplierRepo),
-		Shipment:      handler.NewShipmentHandler(orderUC),
-		Payout:        handler.NewPayoutHandler(payoutUC, supplierRepo),
-		Review:        handler.NewReviewHandler(reviewUC, productRepo),
-		Wishlist:      handler.NewWishlistHandler(wishlistUC),
-		Banner:        handler.NewBannerHandler(bannerUC),
-		Report:        handler.NewReportHandler(reportUC, supplierRepo),
-		AdminReport:   handler.NewAdminReportHandler(adminReportUC),
+		config:        cfg,
+		logger:        log,
+		db:            db,
+		redis:         rdb,
+		jwt:           jwtSvc,
+		authRepo:      authRepo,
+		supplierRepo:  supplierRepo,
+		enqueuer:      enqueuer,
+		health:        handler.NewHealthHandler(db, rdb, "1.0.0"),
+		auth:          handler.NewAuthHandler(authUC, jwtSvc),
+		user:          handler.NewUserHandler(userUC),
+		supplier:      handler.NewSupplierHandler(supplierUC),
+		media:         handler.NewMediaHandler(mediaUC),
+		adminSupplier: handler.NewAdminSupplierHandler(adminSupplierUC),
+		notification:  handler.NewNotificationHandler(notificationUC),
+		category:      handler.NewCategoryHandler(categoryUC),
+		product:       handler.NewProductHandler(productUC, supplierRepo),
+		inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
+		catalog:       handler.NewCatalogHandler(catalogUC, wishlistUC),
+		internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, cfg.Payment.InternalIPAllowlist, orderUC),
+		address:       handler.NewAddressHandler(userUC),
+		cart:          handler.NewCartHandler(cartUC),
+		checkout:      handler.NewCheckoutHandler(checkoutUC),
+		order:         handler.NewOrderHandler(orderUC, supplierRepo),
+		shipment:      handler.NewShipmentHandler(orderUC),
+		payout:        handler.NewPayoutHandler(payoutUC, supplierRepo),
+		review:        handler.NewReviewHandler(reviewUC, productRepo),
+		wishlist:      handler.NewWishlistHandler(wishlistUC),
+		banner:        handler.NewBannerHandler(bannerUC),
+		report:        handler.NewReportHandler(reportUC, supplierRepo),
+		adminReport:   handler.NewAdminReportHandler(adminReportUC),
 	}, nil
 }
 
 // Close releases DB, Redis, and queue connections.
 func (c *Container) Close() {
-	c.DB.Close()
-	_ = c.Redis.Close()
-	_ = c.Enqueuer.Close()
+	c.db.Close()
+	_ = c.redis.Close()
+	_ = c.enqueuer.Close()
 }
