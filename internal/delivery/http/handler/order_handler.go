@@ -8,11 +8,12 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
 	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
 )
 
 // OrderHandler serves order listing/detail and status transitions (FR-5.5-5.8),
@@ -44,9 +45,9 @@ func (h *OrderHandler) GetMine(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c)
 	}
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	o, err := h.order.Get(c.Context(), id)
 	if err != nil {
@@ -63,9 +64,9 @@ func (h *OrderHandler) Cancel(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c)
 	}
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.CancelOrderRequest
 	_ = c.Bind().Body(&req)
@@ -89,9 +90,9 @@ func (h *OrderHandler) ListSupplier(c fiber.Ctx) error {
 }
 
 func (h *OrderHandler) GetSupplier(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	o, err := h.order.Get(c.Context(), id)
 	if err != nil {
@@ -101,9 +102,9 @@ func (h *OrderHandler) GetSupplier(c fiber.Ctx) error {
 }
 
 func (h *OrderHandler) Process(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {
@@ -116,9 +117,9 @@ func (h *OrderHandler) Process(c fiber.Ctx) error {
 }
 
 func (h *OrderHandler) Ship(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.ShipOrderRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -138,9 +139,9 @@ func (h *OrderHandler) Ship(c fiber.Ctx) error {
 }
 
 func (h *OrderHandler) Deliver(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {
@@ -165,9 +166,9 @@ func (h *OrderHandler) ListAdmin(c fiber.Ctx) error {
 }
 
 func (h *OrderHandler) ForceStatus(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	adminID, err := uuid.Parse(ctxutil.UserID(c))
 	if err != nil {

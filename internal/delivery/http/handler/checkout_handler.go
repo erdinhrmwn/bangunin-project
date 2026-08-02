@@ -6,9 +6,10 @@ import (
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	checkoutusecase "erdinhrmwn/bangunin/internal/usecase/checkout"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	checkoutusecase "erdinhrmwn/bangunin/internal/usecase/checkout"
 )
 
 // CheckoutHandler serves cart-to-order checkout (FR-5.2-5.4), mounted under /user/checkout.

@@ -1,0 +1,1292 @@
+openapi: 3.0.3
+info:
+  title: Bangunin API
+  description: Building materials marketplace API (FR-7.8).
+  version: '1.0'
+  license:
+    name: UNLICENSED
+    url: https://example.com/unlicensed
+servers:
+- url: http://localhost:8080
+components:
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data: {}
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+            next_cursor:
+              type: string
+        errors: {}
+  responses:
+    OK:
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+security:
+- bearerAuth: []
+paths:
+  /health:
+    get:
+      tags:
+      - system
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getHealth
+  /internal/payments/callback:
+    post:
+      tags:
+      - internal
+      summary: Xendit payment webhook (X-Internal-Secret header, no JWT)
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postInternalPaymentsCallback
+  /api/v1/auth/register:
+    post:
+      tags:
+      - auth
+      summary: Register
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthRegister
+  /api/v1/auth/verify-email:
+    post:
+      tags:
+      - auth
+      summary: Verify email OTP
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthVerifyEmail
+  /api/v1/auth/resend-otp:
+    post:
+      tags:
+      - auth
+      summary: Resend OTP
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthResendOtp
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth
+      summary: Login
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthLogin
+  /api/v1/auth/refresh:
+    post:
+      tags:
+      - auth
+      summary: Refresh access token
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthRefresh
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Logout
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthLogout
+  /api/v1/auth/forgot-password:
+    post:
+      tags:
+      - auth
+      summary: Forgot password
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthForgotPassword
+  /api/v1/auth/reset-password:
+    post:
+      tags:
+      - auth
+      summary: Reset password
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AuthResetPassword
+  /api/v1/user/me:
+    get:
+      tags:
+      - user
+      summary: Get my profile
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserMe
+    patch:
+      tags:
+      - user
+      summary: Update my profile
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: patchApiV1UserMe
+  /api/v1/user/me/password:
+    patch:
+      tags:
+      - user
+      summary: Change password
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: patchApiV1UserMePassword
+  /api/v1/user/me/notification-settings:
+    patch:
+      tags:
+      - user
+      summary: Update notification settings
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: patchApiV1UserMeNotificationSettings
+  /api/v1/user/addresses:
+    get:
+      tags:
+      - user
+      summary: List my addresses
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserAddresses
+    post:
+      tags:
+      - user
+      summary: Create address
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserAddresses
+  /api/v1/user/addresses/{id}:
+    put:
+      tags:
+      - user
+      summary: Update address
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1UserAddressesId
+    delete:
+      tags:
+      - user
+      summary: Delete address
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: deleteApiV1UserAddressesId
+  /api/v1/user/cart:
+    get:
+      tags:
+      - cart
+      summary: Get my cart
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserCart
+  /api/v1/user/cart/items:
+    post:
+      tags:
+      - cart
+      summary: Add cart item
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserCartItems
+  /api/v1/user/cart/items/{id}:
+    patch:
+      tags:
+      - cart
+      summary: Update cart item
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: patchApiV1UserCartItemsId
+    delete:
+      tags:
+      - cart
+      summary: Remove cart item
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: deleteApiV1UserCartItemsId
+  /api/v1/user/checkout/preview:
+    post:
+      tags:
+      - checkout
+      summary: Preview checkout (shipping cost per supplier)
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserCheckoutPreview
+  /api/v1/user/checkout/confirm:
+    post:
+      tags:
+      - checkout
+      summary: Confirm checkout (creates order split + payment)
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserCheckoutConfirm
+  /api/v1/user/orders:
+    get:
+      tags:
+      - order
+      summary: List my orders
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserOrders
+  /api/v1/user/orders/{id}:
+    get:
+      tags:
+      - order
+      summary: Get my order
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserOrdersId
+  /api/v1/user/orders/{id}/cancel:
+    post:
+      tags:
+      - order
+      summary: Cancel my order
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserOrdersIdCancel
+  /api/v1/user/orders/{id}/shipment:
+    get:
+      tags:
+      - shipment
+      summary: Get order shipment
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserOrdersIdShipment
+  /api/v1/user/orders/{order_item_id}/reviews:
+    post:
+      tags:
+      - review
+      summary: Create review for an order item
+      parameters:
+      - name: order_item_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserOrdersOrder_item_idReviews
+  /api/v1/user/reviews:
+    get:
+      tags:
+      - review
+      summary: List my reviews
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserReviews
+  /api/v1/user/wishlists:
+    get:
+      tags:
+      - wishlist
+      summary: List my wishlist
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserWishlists
+    post:
+      tags:
+      - wishlist
+      summary: Add to wishlist
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserWishlists
+  /api/v1/user/wishlists/{product_id}:
+    delete:
+      tags:
+      - wishlist
+      summary: Remove from wishlist
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: deleteApiV1UserWishlistsProduct_id
+  /api/v1/supplier/me:
+    get:
+      tags:
+      - supplier
+      summary: Get my supplier user profile
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierMe
+  /api/v1/supplier/profile:
+    post:
+      tags:
+      - supplier
+      summary: Create supplier profile
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierProfile
+    put:
+      tags:
+      - supplier
+      summary: Update supplier profile
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1SupplierProfile
+    get:
+      tags:
+      - supplier
+      summary: Get supplier profile
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierProfile
+  /api/v1/supplier/documents:
+    post:
+      tags:
+      - supplier
+      summary: Upload onboarding document
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierDocuments
+    get:
+      tags:
+      - supplier
+      summary: List onboarding documents
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierDocuments
+  /api/v1/supplier/bank-accounts:
+    post:
+      tags:
+      - supplier
+      summary: Create bank account
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierBankAccounts
+    get:
+      tags:
+      - supplier
+      summary: List bank accounts
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierBankAccounts
+  /api/v1/supplier/bank-accounts/{id}:
+    put:
+      tags:
+      - supplier
+      summary: Update bank account
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1SupplierBankAccountsId
+    delete:
+      tags:
+      - supplier
+      summary: Delete bank account
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: deleteApiV1SupplierBankAccountsId
+  /api/v1/supplier/submit:
+    post:
+      tags:
+      - supplier
+      summary: Submit onboarding for admin approval
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierSubmit
+  /api/v1/supplier/dashboard:
+    get:
+      tags:
+      - supplier
+      summary: Supplier dashboard (approved suppliers only)
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierDashboard
+  /api/v1/supplier/products:
+    post:
+      tags:
+      - supplier-product
+      summary: Create product
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierProducts
+    get:
+      tags:
+      - supplier-product
+      summary: List my products
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierProducts
+  /api/v1/supplier/products/{id}:
+    get:
+      tags:
+      - supplier-product
+      summary: Get product
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierProductsId
+    put:
+      tags:
+      - supplier-product
+      summary: Update product
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1SupplierProductsId
+  /api/v1/supplier/products/{id}/publish:
+    post:
+      tags:
+      - supplier-product
+      summary: Publish product
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierProductsIdPublish
+  /api/v1/supplier/products/{id}/variants:
+    post:
+      tags:
+      - supplier-product
+      summary: Create variant
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierProductsIdVariants
+    get:
+      tags:
+      - supplier-product
+      summary: List variants
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierProductsIdVariants
+  /api/v1/supplier/products/{id}/variants/{variantId}:
+    put:
+      tags:
+      - supplier-product
+      summary: Update variant
+      parameters:
+      - $ref: '#/components/parameters/id'
+      - name: variantId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1SupplierProductsIdVariantsVariantid
+  /api/v1/supplier/products/{id}/images:
+    post:
+      tags:
+      - supplier-product
+      summary: Attach product image
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierProductsIdImages
+  /api/v1/supplier/products/{id}/images/{imageId}:
+    put:
+      tags:
+      - supplier-product
+      summary: Set primary image
+      parameters:
+      - $ref: '#/components/parameters/id'
+      - name: imageId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1SupplierProductsIdImagesImageid
+    delete:
+      tags:
+      - supplier-product
+      summary: Delete image
+      parameters:
+      - $ref: '#/components/parameters/id'
+      - name: imageId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: deleteApiV1SupplierProductsIdImagesImageid
+  /api/v1/supplier/variants/{id}/stock-adjustment:
+    post:
+      tags:
+      - inventory
+      summary: Adjust stock
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierVariantsIdStockAdjustment
+  /api/v1/supplier/variants/{id}/movements:
+    get:
+      tags:
+      - inventory
+      summary: List stock movements
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierVariantsIdMovements
+  /api/v1/supplier/orders:
+    get:
+      tags:
+      - supplier-order
+      summary: List orders for my store
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierOrders
+  /api/v1/supplier/orders/{id}:
+    get:
+      tags:
+      - supplier-order
+      summary: Get order
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierOrdersId
+  /api/v1/supplier/orders/{id}/process:
+    post:
+      tags:
+      - supplier-order
+      summary: Mark order processed
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierOrdersIdProcess
+  /api/v1/supplier/orders/{id}/ship:
+    post:
+      tags:
+      - supplier-order
+      summary: Mark order shipped
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierOrdersIdShip
+  /api/v1/supplier/orders/{id}/deliver:
+    post:
+      tags:
+      - supplier-order
+      summary: Mark order delivered
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierOrdersIdDeliver
+  /api/v1/supplier/balance:
+    get:
+      tags:
+      - payout
+      summary: Get my balance
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierBalance
+  /api/v1/supplier/withdraws:
+    post:
+      tags:
+      - payout
+      summary: Request withdraw
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1SupplierWithdraws
+    get:
+      tags:
+      - payout
+      summary: List my withdraws
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierWithdraws
+  /api/v1/supplier/withdraws/{id}:
+    get:
+      tags:
+      - payout
+      summary: Get my withdraw
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierWithdrawsId
+  /api/v1/supplier/reports/summary:
+    get:
+      tags:
+      - report
+      summary: Sales summary
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierReportsSummary
+  /api/v1/supplier/reports/export:
+    get:
+      tags:
+      - report
+      summary: Export sales report
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SupplierReportsExport
+  /api/v1/admin/me:
+    get:
+      tags:
+      - admin
+      summary: Get my admin profile
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminMe
+  /api/v1/admin/suppliers:
+    get:
+      tags:
+      - admin-supplier
+      summary: List suppliers
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminSuppliers
+  /api/v1/admin/suppliers/{id}:
+    get:
+      tags:
+      - admin-supplier
+      summary: Get supplier
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminSuppliersId
+  /api/v1/admin/suppliers/{id}/approve:
+    post:
+      tags:
+      - admin-supplier
+      summary: Approve supplier
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminSuppliersIdApprove
+  /api/v1/admin/suppliers/{id}/reject:
+    post:
+      tags:
+      - admin-supplier
+      summary: Reject supplier
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminSuppliersIdReject
+  /api/v1/admin/suppliers/{id}/suspend:
+    post:
+      tags:
+      - admin-supplier
+      summary: Suspend supplier
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminSuppliersIdSuspend
+  /api/v1/admin/audit-logs:
+    get:
+      tags:
+      - admin-supplier
+      summary: List audit logs
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminAuditLogs
+  /api/v1/admin/categories:
+    post:
+      tags:
+      - admin-category
+      summary: Create category
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminCategories
+  /api/v1/admin/categories/{id}:
+    put:
+      tags:
+      - admin-category
+      summary: Update category
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1AdminCategoriesId
+    delete:
+      tags:
+      - admin-category
+      summary: Delete category
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: deleteApiV1AdminCategoriesId
+  /api/v1/admin/orders:
+    get:
+      tags:
+      - admin-order
+      summary: List all orders
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminOrders
+  /api/v1/admin/orders/{id}:
+    get:
+      tags:
+      - admin-order
+      summary: Get order
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminOrdersId
+  /api/v1/admin/orders/{id}/force-status:
+    post:
+      tags:
+      - admin-order
+      summary: Force order status transition
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminOrdersIdForceStatus
+  /api/v1/admin/withdraws:
+    get:
+      tags:
+      - admin-payout
+      summary: List withdraws
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminWithdraws
+  /api/v1/admin/withdraws/{id}:
+    get:
+      tags:
+      - admin-payout
+      summary: Get withdraw
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminWithdrawsId
+  /api/v1/admin/withdraws/{id}/approve:
+    post:
+      tags:
+      - admin-payout
+      summary: Approve withdraw
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminWithdrawsIdApprove
+  /api/v1/admin/withdraws/{id}/reject:
+    post:
+      tags:
+      - admin-payout
+      summary: Reject withdraw
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminWithdrawsIdReject
+  /api/v1/admin/banners:
+    post:
+      tags:
+      - admin-banner
+      summary: Create banner
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1AdminBanners
+    get:
+      tags:
+      - admin-banner
+      summary: List all banners
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminBanners
+  /api/v1/admin/banners/{id}:
+    put:
+      tags:
+      - admin-banner
+      summary: Update banner
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: putApiV1AdminBannersId
+    delete:
+      tags:
+      - admin-banner
+      summary: Delete banner
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: deleteApiV1AdminBannersId
+  /api/v1/admin/reports/summary:
+    get:
+      tags:
+      - admin-report
+      summary: Platform summary
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminReportsSummary
+  /api/v1/admin/reports/export:
+    get:
+      tags:
+      - admin-report
+      summary: Export platform report
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1AdminReportsExport
+  /api/v1/media/upload:
+    post:
+      tags:
+      - media
+      summary: Upload a media file
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1MediaUpload
+  /api/v1/user/notifications/{id}/read:
+    post:
+      tags:
+      - notification
+      summary: Mark notification read
+      parameters:
+      - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: postApiV1UserNotificationsIdRead
+  /api/v1/categories:
+    get:
+      tags:
+      - public
+      summary: Category tree
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1Categories
+  /api/v1/products:
+    get:
+      tags:
+      - public
+      summary: Search products
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1Products
+  /api/v1/products/{slug}:
+    get:
+      tags:
+      - public
+      summary: Product detail (optional auth)
+      security: []
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1ProductsSlug
+  /api/v1/suppliers/{slug}:
+    get:
+      tags:
+      - public
+      summary: Supplier storefront
+      security: []
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1SuppliersSlug
+  /api/v1/products/{slug}/reviews:
+    get:
+      tags:
+      - public
+      summary: List product reviews
+      security: []
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1ProductsSlugReviews
+  /api/v1/banners:
+    get:
+      tags:
+      - public
+      summary: List active banners
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1Banners
+  /api/v1/user/notifications:
+    get:
+      tags:
+      - notification
+      summary: List my notifications
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        4XX:
+          $ref: '#/components/responses/Error'
+      operationId: getApiV1UserNotifications

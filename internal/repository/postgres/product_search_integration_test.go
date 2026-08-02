@@ -12,21 +12,23 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
-	migratepg "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	migratepg "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/lib/pq"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"erdinhrmwn/bangunin/config"
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/infra/database"
 	"erdinhrmwn/bangunin/migrations"
+
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 )
 

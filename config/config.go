@@ -12,13 +12,13 @@ import (
 )
 
 type Config struct {
-	App        AppConfig
-	DB         DBConfig
-	Redis      RedisConfig
-	JWT        JWTConfig
-	Xendit     XenditConfig
-	RajaOngkir RajaOngkirConfig
-	R2         R2Config
+	App          AppConfig
+	DB           DBConfig
+	Redis        RedisConfig
+	JWT          JWTConfig
+	Xendit       XenditConfig
+	RajaOngkir   RajaOngkirConfig
+	R2           R2Config
 	Catalog      CatalogConfig
 	Payment      PaymentConfig
 	Notification NotificationConfig
@@ -76,8 +76,9 @@ type CatalogConfig struct {
 // PaymentConfig configures the monolith's gRPC client to services/payment
 // and the shared secret used to authenticate its inbound callback.
 type PaymentConfig struct {
-	GRPCAddr       string
-	InternalSecret string
+	GRPCAddr            string
+	InternalSecret      string
+	InternalIPAllowlist []string
 }
 
 // NotificationConfig configures the worker's gRPC client to
@@ -154,8 +155,9 @@ func Load(configPath string) (*Config, error) {
 			LowStockThreshold: v.GetInt("catalog.low_stock_threshold"),
 		},
 		Payment: PaymentConfig{
-			GRPCAddr:       v.GetString("payment.grpc_addr"),
-			InternalSecret: v.GetString("payment.internal_secret"),
+			GRPCAddr:            v.GetString("payment.grpc_addr"),
+			InternalSecret:      v.GetString("payment.internal_secret"),
+			InternalIPAllowlist: v.GetStringSlice("payment.internal_ip_allowlist"),
 		},
 		Notification: NotificationConfig{
 			GRPCAddr: v.GetString("notification.grpc_addr"),

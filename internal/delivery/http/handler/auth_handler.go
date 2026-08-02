@@ -5,13 +5,15 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
-	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
 	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/jwt"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
 )
 
 type AuthHandler struct {
@@ -151,6 +153,16 @@ func (h *AuthHandler) ResetPassword(c fiber.Ctx) error {
 
 func badRequest(c fiber.Ctx) error {
 	return c.Status(fiber.StatusBadRequest).JSON(response.Error("Invalid request body", nil))
+}
+
+// parseUUIDParam parses a route param as a UUID (FR-7.5 centralized
+// validation), returning a ready-to-return 400 response error on failure.
+func parseUUIDParam(c fiber.Ctx, param string) (uuid.UUID, error) {
+	id, err := uuid.Parse(c.Params(param))
+	if err != nil {
+		return uuid.Nil, badRequest(c)
+	}
+	return id, nil
 }
 
 func errJSON(c fiber.Ctx, err error) error {

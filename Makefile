@@ -1,5 +1,5 @@
-.PHONY: help run run-worker build clean migrate-up migrate-down migrate-create seed \
-        test test-cover lint fmt vet tidy gen-proto \
+.PHONY: help run run-worker build clean migrate-up migrate-down migrate-create seed seed-demo \
+        test test-cover lint fmt vet tidy gen-proto vuln \
         docker-up docker-down docker-logs docker-build
 
 help: ## Show this help
@@ -44,6 +44,11 @@ seed: ## Migrate up + run seeders
 	go run ./cmd/migrate -cmd up -seed
 	@echo "✅ seed done"
 
+seed-demo: ## Migrate up + run seeders + demo dataset (3 suppliers, 30 products, 1 order per status)
+	@echo "🌱 seeding demo database..."
+	go run ./cmd/migrate -cmd up -seed -demo
+	@echo "✅ demo seed done"
+
 ## Quality
 test: ## Run tests
 	@echo "🧪 running tests..."
@@ -74,6 +79,10 @@ tidy: ## Tidy go.mod/go.sum
 	@echo "📦 tidying go modules..."
 	go mod tidy
 
+vuln: ## Audit dependencies for known vulnerabilities (FR-7.5)
+	@command -v govulncheck >/dev/null || go install golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck ./...
+
 gen-proto: ## Generate gRPC code from .proto files
 	protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
@@ -81,17 +90,19 @@ gen-proto: ## Generate gRPC code from .proto files
 		proto/notification/v1/notification.proto
 
 ## Docker
+DC := docker compose --env-file .env -f deploy/docker-compose.yml
+
 docker-up: ## Start local infra (postgres, redis, minio)
 	@echo "🐳 starting local infra..."
-	docker compose -f deploy/docker-compose.yml up -d
+	$(DC) up -d
 
 docker-down: ## Stop local infra
 	@echo "🐳 stopping local infra..."
-	docker compose -f deploy/docker-compose.yml down
+	$(DC) down
 
 docker-logs: ## Tail local infra logs
-	docker compose -f deploy/docker-compose.yml logs -f
+	$(DC) logs -f
 
 docker-build: ## Build api/worker images
 	@echo "🐳 building docker images..."
-	docker compose -f deploy/docker-compose.yml build
+	$(DC) build

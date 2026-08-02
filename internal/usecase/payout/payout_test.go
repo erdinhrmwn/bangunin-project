@@ -12,9 +12,10 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
+	"erdinhrmwn/bangunin/pkg/apperr"
+
 	servicemocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
 	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
-	"erdinhrmwn/bangunin/pkg/apperr"
 )
 
 type deps struct {
@@ -63,6 +64,75 @@ func stubNotify(d *deps) {
 func appErrCode(t *testing.T, err error) string {
 	t.Helper()
 	return apperr.From(err).Code
+}
+
+func TestBalance_NoRow_ReturnsZero(t *testing.T) {
+	uc, d := newUsecase(t)
+	supplierID := uuid.Must(uuid.NewV7())
+	d.balances.EXPECT().FindBySupplierID(mock.Anything, supplierID).Return(nil, errs.ErrNotFound)
+
+	b, err := uc.Balance(context.Background(), supplierID)
+
+	require.NoError(t, err)
+	require.Equal(t, float64(0), b.Balance)
+}
+
+func TestListBySupplier_DelegatesToRepository(t *testing.T) {
+	uc, d := newUsecase(t)
+	supplierID := uuid.Must(uuid.NewV7())
+	want := []*entity.WithdrawRequest{{SupplierID: supplierID}}
+	d.withdraws.EXPECT().ListBySupplier(mock.Anything, supplierID, 1, 20).Return(want, 1, nil)
+
+	got, total, err := uc.ListBySupplier(context.Background(), supplierID, 1, 20)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	require.Equal(t, 1, total)
+}
+
+func TestListAll_DelegatesToRepository(t *testing.T) {
+	uc, d := newUsecase(t)
+	want := []*entity.WithdrawRequest{{ID: uuid.Must(uuid.NewV7())}}
+	d.withdraws.EXPECT().ListAll(mock.Anything, "pending", 1, 20).Return(want, 1, nil)
+
+	got, total, err := uc.ListAll(context.Background(), "pending", 1, 20)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	require.Equal(t, 1, total)
+}
+
+func TestGet_DelegatesToRepository(t *testing.T) {
+	uc, d := newUsecase(t)
+	id := uuid.Must(uuid.NewV7())
+	want := &entity.WithdrawRequest{ID: id}
+	d.withdraws.EXPECT().FindByID(mock.Anything, id).Return(want, nil)
+
+	got, err := uc.Get(context.Background(), id)
+
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestGetForSupplier_Success(t *testing.T) {
+	uc, d := newUsecase(t)
+	id, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	d.withdraws.EXPECT().FindByID(mock.Anything, id).Return(&entity.WithdrawRequest{ID: id, SupplierID: supplierID}, nil)
+
+	got, err := uc.GetForSupplier(context.Background(), id, supplierID)
+
+	require.NoError(t, err)
+	require.Equal(t, id, got.ID)
+}
+
+func TestGetForSupplier_ForbiddenWhenNotOwner(t *testing.T) {
+	uc, d := newUsecase(t)
+	id, supplierID, otherSupplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	d.withdraws.EXPECT().FindByID(mock.Anything, id).Return(&entity.WithdrawRequest{ID: id, SupplierID: otherSupplierID}, nil)
+
+	_, err := uc.GetForSupplier(context.Background(), id, supplierID)
+
+	require.Equal(t, "FORBIDDEN", appErrCode(t, err))
 }
 
 func TestRequest_BelowMinimum_Returns422(t *testing.T) {

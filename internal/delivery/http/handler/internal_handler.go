@@ -11,11 +11,26 @@ import (
 // (currently: services/payment's Xendit callback relay, FR-5.6).
 type InternalHandler struct {
 	internalSecret string
+	ipAllowlist    []string
 	order          *order.Usecase
 }
 
-func NewInternalHandler(internalSecret string, order *order.Usecase) *InternalHandler {
-	return &InternalHandler{internalSecret: internalSecret, order: order}
+func NewInternalHandler(internalSecret string, ipAllowlist []string, order *order.Usecase) *InternalHandler {
+	return &InternalHandler{internalSecret: internalSecret, ipAllowlist: ipAllowlist, order: order}
+}
+
+// ipAllowed reports whether ip may call this endpoint. An empty allowlist
+// means "any IP" (the shared secret is still required either way).
+func (h *InternalHandler) ipAllowed(ip string) bool {
+	if len(h.ipAllowlist) == 0 {
+		return true
+	}
+	for _, allowed := range h.ipAllowlist {
+		if allowed == ip {
+			return true
+		}
+	}
+	return false
 }
 
 type paymentCallbackRequest struct {
@@ -27,7 +42,7 @@ type paymentCallbackRequest struct {
 // PaymentCallback handles POST /internal/payments/callback, relayed by
 // services/payment after it verifies the Xendit webhook.
 func (h *InternalHandler) PaymentCallback(c fiber.Ctx) error {
-	if c.Get("X-Internal-Secret") != h.internalSecret {
+	if c.Get("X-Internal-Secret") != h.internalSecret || !h.ipAllowed(c.IP()) {
 		return c.Status(fiber.StatusUnauthorized).JSON(response.Error("Invalid internal secret", nil))
 	}
 

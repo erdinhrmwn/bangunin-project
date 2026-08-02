@@ -12,8 +12,9 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
-	categoryusecase "erdinhrmwn/bangunin/internal/usecase/category"
 	"erdinhrmwn/bangunin/pkg/apperr"
+
+	categoryusecase "erdinhrmwn/bangunin/internal/usecase/category"
 )
 
 func newUsecase(t *testing.T) (*categoryusecase.Usecase, *mocks.MockCategoryRepository) {

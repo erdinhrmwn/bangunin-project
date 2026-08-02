@@ -7,10 +7,11 @@ import (
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
 )
 
 // PayoutHandler serves supplier withdraw requests + balance (FR-6.3) and
@@ -73,9 +74,9 @@ func (h *PayoutHandler) ListMine(c fiber.Ctx) error {
 }
 
 func (h *PayoutHandler) GetMine(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	supplierID, err := resolveSupplierID(c, h.suppliers)
 	if err != nil {
@@ -98,9 +99,9 @@ func (h *PayoutHandler) ListAdmin(c fiber.Ctx) error {
 }
 
 func (h *PayoutHandler) GetAdmin(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	w, err := h.payout.Get(c.Context(), id)
 	if err != nil {
@@ -110,9 +111,9 @@ func (h *PayoutHandler) GetAdmin(c fiber.Ctx) error {
 }
 
 func (h *PayoutHandler) Approve(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	actorID, err := uuid.Parse(ctxutil.UserID(c))
 	if err != nil {
@@ -126,9 +127,9 @@ func (h *PayoutHandler) Approve(c fiber.Ctx) error {
 }
 
 func (h *PayoutHandler) Reject(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.RejectRequest
 	if err := c.Bind().Body(&req); err != nil {

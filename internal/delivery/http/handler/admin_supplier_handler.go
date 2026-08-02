@@ -8,10 +8,11 @@ import (
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
 )
 
 // AdminSupplierHandler serves admin review of supplier applications
@@ -34,9 +35,9 @@ func (h *AdminSupplierHandler) List(c fiber.Ctx) error {
 }
 
 func (h *AdminSupplierHandler) Get(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	detail, err := h.admin.Get(c.Context(), id)
 	if err != nil {
@@ -46,9 +47,9 @@ func (h *AdminSupplierHandler) Get(c fiber.Ctx) error {
 }
 
 func (h *AdminSupplierHandler) Approve(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	actorID, err := uuid.Parse(ctxutil.UserID(c))
 	if err != nil {
@@ -62,9 +63,9 @@ func (h *AdminSupplierHandler) Approve(c fiber.Ctx) error {
 }
 
 func (h *AdminSupplierHandler) Reject(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.RejectRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -85,9 +86,9 @@ func (h *AdminSupplierHandler) Reject(c fiber.Ctx) error {
 }
 
 func (h *AdminSupplierHandler) Suspend(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.SuspendRequest
 	if err := c.Bind().Body(&req); err != nil {

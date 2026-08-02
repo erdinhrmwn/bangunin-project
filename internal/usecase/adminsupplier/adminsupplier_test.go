@@ -3,6 +3,7 @@ package adminsupplier_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -10,9 +11,10 @@ import (
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
+	"erdinhrmwn/bangunin/pkg/apperr"
+
 	svcmocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
 	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
-	"erdinhrmwn/bangunin/pkg/apperr"
 )
 
 func newUsecase(t *testing.T) (*adminsupplierusecase.Usecase, *mocks.MockSupplierRepository, *mocks.MockSupplierDocumentRepository, *mocks.MockUserRepository, *mocks.MockAuditLogRepository, *mocks.MockNotificationRepository, *svcmocks.MockEmailEnqueuer) {
@@ -105,6 +107,51 @@ func TestSuspend_NotApproved_Conflict(t *testing.T) {
 	_, err := uc.Suspend(context.Background(), mustUUID(t), id, "reason", "127.0.0.1")
 
 	assert.Equal(t, "INVALID_STATUS", appErrCode(t, err))
+}
+
+func TestSuspend_Success(t *testing.T) {
+	uc, suppliers, _, users, audit, notify, email := newUsecase(t)
+	id := mustUUID(t)
+	userID := mustUUID(t)
+	s := &entity.Supplier{ID: id, UserID: userID, Status: entity.SupplierStatusApproved}
+	suppliers.EXPECT().FindByID(mock.Anything, id).Return(s, nil)
+	suppliers.EXPECT().Update(mock.Anything, mock.MatchedBy(func(s *entity.Supplier) bool {
+		return s.Status == entity.SupplierStatusSuspended
+	})).Return(nil)
+	audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+	notify.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+	users.EXPECT().FindByID(mock.Anything, userID).Return(&entity.User{ID: userID, Email: "a@example.com"}, nil)
+	email.EXPECT().EnqueueEmail(mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	got, err := uc.Suspend(context.Background(), mustUUID(t), id, "policy violation", "127.0.0.1")
+
+	assert.NoError(t, err)
+	assert.Equal(t, entity.SupplierStatusSuspended, got.Status)
+}
+
+func TestList_DelegatesToRepository(t *testing.T) {
+	uc, suppliers, _, _, _, _, _ := newUsecase(t)
+	want := []*entity.Supplier{{ID: mustUUID(t)}}
+	suppliers.EXPECT().List(mock.Anything, "pending", "q", 1, 20).Return(want, 1, nil)
+
+	got, total, err := uc.List(context.Background(), "pending", "q", 1, 20)
+
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+	assert.Equal(t, 1, total)
+}
+
+func TestAuditLogs_DelegatesToRepository(t *testing.T) {
+	uc, _, _, _, audit, _, _ := newUsecase(t)
+	want := []*entity.AuditLog{{ID: mustUUID(t)}}
+	from, to := time.Now().Add(-24*time.Hour), time.Now()
+	audit.EXPECT().List(mock.Anything, from, to, 1, 20).Return(want, 1, nil)
+
+	got, total, err := uc.AuditLogs(context.Background(), from, to, 1, 20)
+
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+	assert.Equal(t, 1, total)
 }
 
 func TestGet_ReturnsDetailWithDocuments(t *testing.T) {

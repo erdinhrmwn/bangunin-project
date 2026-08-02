@@ -12,11 +12,12 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
-	svcmocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
-	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
 	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/hash"
 	"erdinhrmwn/bangunin/pkg/jwt"
+
+	svcmocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
+	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
 )
 
 func newUsecase(t *testing.T) (*authusecase.Usecase, *mocks.MockUserRepository, *mocks.MockAuthRepository, *svcmocks.MockEmailEnqueuer) {
@@ -134,6 +135,136 @@ func TestResetPassword_RevokesSessions(t *testing.T) {
 	authRepo.EXPECT().DeleteOTP(mock.Anything, "reset", usr.ID.String()).Return(nil)
 
 	err := uc.ResetPassword(context.Background(), "a@example.com", "123456", "new-password1")
+
+	assert.NoError(t, err)
+}
+
+// Register: success path creates the user and sends a verification OTP.
+func TestRegister_Success(t *testing.T) {
+	uc, users, authRepo, email := newUsecase(t)
+	users.EXPECT().FindByEmail(mock.Anything, "new@example.com").Return(nil, errs.ErrNotFound)
+	users.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+	authRepo.EXPECT().PutOTP(mock.Anything, "verify", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	email.EXPECT().EnqueueEmail(mock.Anything, "Verify your email", mock.Anything).Return(nil)
+
+	usr, err := uc.Register(context.Background(), authusecase.RegisterInput{
+		Name: "A", Email: "new@example.com", Password: "password1", Role: entity.RoleUser,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "new@example.com", usr.Email)
+}
+
+// ResendOTP: second call within the window is rate limited.
+func TestResendOTP_RateLimited(t *testing.T) {
+	uc, users, authRepo, _ := newUsecase(t)
+	usr := &entity.User{ID: mustUUID(t), Email: "a@example.com"}
+	users.EXPECT().FindByEmail(mock.Anything, "a@example.com").Return(usr, nil)
+	authRepo.EXPECT().IncrResend(mock.Anything, "a@example.com").Return(int64(2), nil)
+
+	err := uc.ResendOTP(context.Background(), "a@example.com")
+
+	assert.Equal(t, "RATE_LIMITED", appErrCode(t, err))
+}
+
+// ResendOTP: first call re-sends the OTP.
+func TestResendOTP_Success(t *testing.T) {
+	uc, users, authRepo, email := newUsecase(t)
+	usr := &entity.User{ID: mustUUID(t), Email: "a@example.com"}
+	users.EXPECT().FindByEmail(mock.Anything, "a@example.com").Return(usr, nil)
+	authRepo.EXPECT().IncrResend(mock.Anything, "a@example.com").Return(int64(1), nil)
+	authRepo.EXPECT().PutOTP(mock.Anything, "verify", usr.ID.String(), mock.Anything, mock.Anything).Return(nil)
+	email.EXPECT().EnqueueEmail(usr.Email, "Verify your email", mock.Anything).Return(nil)
+
+	err := uc.ResendOTP(context.Background(), "a@example.com")
+
+	assert.NoError(t, err)
+}
+
+// Login: success issues an access/refresh token pair.
+func TestLogin_Success(t *testing.T) {
+	uc, users, authRepo, _ := newUsecase(t)
+	hashed, err := hash.Hash("correct-pass1")
+	assert.NoError(t, err)
+	now := time.Now()
+	usr := &entity.User{ID: mustUUID(t), Email: "a@example.com", PasswordHash: hashed, EmailVerifiedAt: &now, Status: entity.UserStatusActive, RoleID: entity.RoleUserID}
+
+	authRepo.EXPECT().IsLoginBlocked(mock.Anything, "a@example.com", "1.2.3.4").Return(false, nil)
+	users.EXPECT().FindByEmail(mock.Anything, "a@example.com").Return(usr, nil)
+	authRepo.EXPECT().PutRefreshToken(mock.Anything, mock.Anything, usr.ID.String(), mock.Anything).Return(nil)
+
+	pair, err := uc.Login(context.Background(), "a@example.com", "correct-pass1", "1.2.3.4")
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, pair.AccessToken)
+	assert.NotEmpty(t, pair.RefreshToken)
+}
+
+// Refresh: invalid/expired token -> 401.
+func TestRefresh_InvalidToken(t *testing.T) {
+	uc, _, authRepo, _ := newUsecase(t)
+	authRepo.EXPECT().GetRefreshToken(mock.Anything, "bad-token").Return("", errs.ErrNotFound)
+
+	_, err := uc.Refresh(context.Background(), "bad-token")
+
+	assert.Equal(t, "UNAUTHORIZED", appErrCode(t, err))
+}
+
+// Refresh: success rotates the token and issues a new pair.
+func TestRefresh_Success(t *testing.T) {
+	uc, users, authRepo, _ := newUsecase(t)
+	usr := &entity.User{ID: mustUUID(t), Email: "a@example.com", RoleID: entity.RoleUserID}
+	authRepo.EXPECT().GetRefreshToken(mock.Anything, "old-token").Return(usr.ID.String(), nil)
+	authRepo.EXPECT().DeleteRefreshToken(mock.Anything, "old-token").Return(nil)
+	users.EXPECT().FindByID(mock.Anything, usr.ID).Return(usr, nil)
+	authRepo.EXPECT().PutRefreshToken(mock.Anything, mock.Anything, usr.ID.String(), mock.Anything).Return(nil)
+
+	pair, err := uc.Refresh(context.Background(), "old-token")
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, pair.AccessToken)
+}
+
+// Logout: deletes the refresh token and blacklists the access token jti.
+func TestLogout_Success(t *testing.T) {
+	uc, _, authRepo, _ := newUsecase(t)
+	authRepo.EXPECT().DeleteRefreshToken(mock.Anything, "some-token").Return(nil)
+	authRepo.EXPECT().BlacklistJTI(mock.Anything, "jti-1", 5*time.Minute).Return(nil)
+
+	err := uc.Logout(context.Background(), "some-token", "jti-1", 5*time.Minute)
+
+	assert.NoError(t, err)
+}
+
+// Logout: empty refresh token still blacklists the access token jti.
+func TestLogout_EmptyRefreshToken(t *testing.T) {
+	uc, _, authRepo, _ := newUsecase(t)
+	authRepo.EXPECT().BlacklistJTI(mock.Anything, "jti-1", 5*time.Minute).Return(nil)
+
+	err := uc.Logout(context.Background(), "", "jti-1", 5*time.Minute)
+
+	assert.NoError(t, err)
+}
+
+// ForgotPassword: unknown email doesn't leak existence, returns nil.
+func TestForgotPassword_UnknownEmail(t *testing.T) {
+	uc, users, _, _ := newUsecase(t)
+	users.EXPECT().FindByEmail(mock.Anything, "ghost@example.com").Return(nil, errs.ErrNotFound)
+
+	err := uc.ForgotPassword(context.Background(), "ghost@example.com")
+
+	assert.NoError(t, err)
+}
+
+// ForgotPassword: known email sends a reset OTP.
+func TestForgotPassword_Success(t *testing.T) {
+	uc, users, authRepo, email := newUsecase(t)
+	usr := &entity.User{ID: mustUUID(t), Email: "a@example.com"}
+	users.EXPECT().FindByEmail(mock.Anything, "a@example.com").Return(usr, nil)
+	authRepo.EXPECT().PutOTP(mock.Anything, "reset", usr.ID.String(), mock.Anything, mock.Anything).Return(nil)
+	email.EXPECT().EnqueueEmail(usr.Email, "Reset your password", mock.Anything).Return(nil)
+
+	err := uc.ForgotPassword(context.Background(), "a@example.com")
 
 	assert.NoError(t, err)
 }

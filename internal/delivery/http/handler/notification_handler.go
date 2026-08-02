@@ -5,9 +5,10 @@ import (
 	"github.com/google/uuid"
 
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	notificationusecase "erdinhrmwn/bangunin/internal/usecase/notification"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
+
+	notificationusecase "erdinhrmwn/bangunin/internal/usecase/notification"
 )
 
 // NotificationHandler serves the caller's own in-app notifications, mounted
@@ -34,9 +35,9 @@ func (h *NotificationHandler) List(c fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) MarkRead(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
+	id, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	userID, err := uuid.Parse(ctxutil.UserID(c))
 	if err != nil {

@@ -3,8 +3,9 @@ package handler
 import (
 	"github.com/gofiber/fiber/v3"
 
-	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
 	"erdinhrmwn/bangunin/pkg/response"
+
+	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
 )
 
 // MediaHandler serves POST /media/upload — generic file upload used by

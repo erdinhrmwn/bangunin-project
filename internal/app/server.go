@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/hibiken/asynq"
 
 	"erdinhrmwn/bangunin/internal/delivery/http/middleware"
 	"erdinhrmwn/bangunin/internal/delivery/http/route"
@@ -18,13 +20,19 @@ import (
 func (c *Container) Run() error {
 	app := fiber.New()
 
+	app.Get("/metrics", middleware.MetricsHandler())
+	middleware.StartQueueSizeExporter(asynq.RedisClientOpt{Addr: c.Config.Redis.Addr, Password: c.Config.Redis.Password, DB: c.Config.Redis.DB}, 15*time.Second)
+
 	app.Use(middleware.Recover(c.Logger))
 	app.Use(middleware.RequestID())
 	app.Use(middleware.RequestLog(c.Logger))
+	app.Use(middleware.Metrics)
+	app.Use(helmet.New())
+	app.Use(middleware.BodyLimit)
 	app.Use(middleware.CORS(nil))
 	app.Use(middleware.RateLimit(c.Redis))
 
-	route.Register(app, c.Health, c.Auth, c.User, c.Supplier, c.Media, c.AdminSupplier, c.Notification, c.Category, c.Product, c.Inventory, c.Catalog, c.Internal, c.Address, c.Cart, c.Checkout, c.Order, c.Shipment, c.Payout, c.Review, c.JWT, c.AuthRepo, c.SupplierRepo)
+	route.Register(app, c.Health, c.Auth, c.User, c.Supplier, c.Media, c.AdminSupplier, c.Notification, c.Category, c.Product, c.Inventory, c.Catalog, c.Internal, c.Address, c.Cart, c.Checkout, c.Order, c.Shipment, c.Payout, c.Review, c.Wishlist, c.Banner, c.Report, c.AdminReport, c.JWT, c.AuthRepo, c.SupplierRepo, c.Redis)
 
 	errCh := make(chan error, 1)
 	go func() {

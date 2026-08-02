@@ -8,9 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"erdinhrmwn/bangunin/pkg/apperr"
+
 	svcmocks "erdinhrmwn/bangunin/internal/domain/service/mocks"
 	mediausecase "erdinhrmwn/bangunin/internal/usecase/media"
-	"erdinhrmwn/bangunin/pkg/apperr"
 )
 
 func newUsecase(t *testing.T) (*mediausecase.Usecase, *svcmocks.MockStorageService, *svcmocks.MockMediaEnqueuer) {

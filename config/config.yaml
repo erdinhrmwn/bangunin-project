@@ -40,6 +40,7 @@ catalog:
 payment:
   grpc_addr: "localhost:50051"
   internal_secret: "change-me-in-env"
+  internal_ip_allowlist: [] # empty = allow any IP (secret header still required)
 
 notification:
   grpc_addr: "localhost:50052"

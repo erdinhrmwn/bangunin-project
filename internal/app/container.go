@@ -17,10 +17,15 @@ import (
 	"erdinhrmwn/bangunin/internal/infra/queue"
 	"erdinhrmwn/bangunin/internal/infra/rajaongkir"
 	"erdinhrmwn/bangunin/internal/infra/storage"
+	"erdinhrmwn/bangunin/pkg/jwt"
+	"erdinhrmwn/bangunin/pkg/logger"
+
+	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
 	postgresrepo "erdinhrmwn/bangunin/internal/repository/postgres"
 	redisrepo "erdinhrmwn/bangunin/internal/repository/redis"
 	adminsupplierusecase "erdinhrmwn/bangunin/internal/usecase/adminsupplier"
 	authusecase "erdinhrmwn/bangunin/internal/usecase/auth"
+	bannerusecase "erdinhrmwn/bangunin/internal/usecase/banner"
 	cartusecase "erdinhrmwn/bangunin/internal/usecase/cart"
 	catalogusecase "erdinhrmwn/bangunin/internal/usecase/catalog"
 	categoryusecase "erdinhrmwn/bangunin/internal/usecase/category"
@@ -31,13 +36,11 @@ import (
 	orderusecase "erdinhrmwn/bangunin/internal/usecase/order"
 	payoutusecase "erdinhrmwn/bangunin/internal/usecase/payout"
 	productusecase "erdinhrmwn/bangunin/internal/usecase/product"
+	reportusecase "erdinhrmwn/bangunin/internal/usecase/report"
 	reviewusecase "erdinhrmwn/bangunin/internal/usecase/review"
 	supplierusecase "erdinhrmwn/bangunin/internal/usecase/supplier"
 	userusecase "erdinhrmwn/bangunin/internal/usecase/user"
-	"erdinhrmwn/bangunin/pkg/jwt"
-	"erdinhrmwn/bangunin/pkg/logger"
-
-	infraredis "erdinhrmwn/bangunin/internal/infra/redis"
+	wishlistusecase "erdinhrmwn/bangunin/internal/usecase/wishlist"
 )
 
 // Container holds process-wide dependencies, built once at startup.
@@ -71,6 +74,10 @@ type Container struct {
 	Shipment      *handler.ShipmentHandler
 	Payout        *handler.PayoutHandler
 	Review        *handler.ReviewHandler
+	Wishlist      *handler.WishlistHandler
+	Banner        *handler.BannerHandler
+	Report        *handler.ReportHandler
+	AdminReport   *handler.AdminReportHandler
 }
 
 // NewContainer connects to Postgres/Redis and builds all handlers. Callers
@@ -111,6 +118,8 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	cartRepo := postgresrepo.NewCartRepository(db)
 	withdrawRepo := postgresrepo.NewWithdrawRequestRepository(db)
 	reviewRepo := postgresrepo.NewReviewRepository(db)
+	wishlistRepo := postgresrepo.NewWishlistRepository(db)
+	bannerRepo := postgresrepo.NewBannerRepository(db)
 	jwtSvc := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL)
 	enqueuer := queue.NewEnqueuer(asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 	stockLock := redisrepo.NewStockLock(rdb)
@@ -152,6 +161,10 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		auditLogRepo, notificationRepo, enqueuer, ledgerRepo, paymentClient,
 	)
 	reviewUC := reviewusecase.New(reviewRepo, orderRepo, productVariantRepo, productRepo)
+	wishlistUC := wishlistusecase.New(wishlistRepo, productRepo)
+	bannerUC := bannerusecase.New(bannerRepo, rdb)
+	reportUC := reportusecase.New(orderRepo, enqueuer)
+	adminReportUC := reportusecase.NewAdmin(orderRepo, ledgerRepo, supplierRepo, userRepo, enqueuer)
 	checkoutUC := checkoutusecase.New(
 		checkoutGroupRepo, paymentRepo, stockReservationRepo, userAddressRepo, cartRepo,
 		productVariantRepo, productRepo, supplierRepo, shippingGW, paymentClient, stockLock,
@@ -176,8 +189,8 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Category:      handler.NewCategoryHandler(categoryUC),
 		Product:       handler.NewProductHandler(productUC, supplierRepo),
 		Inventory:     handler.NewInventoryHandler(inventoryUC, supplierRepo),
-		Catalog:       handler.NewCatalogHandler(catalogUC),
-		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, orderUC),
+		Catalog:       handler.NewCatalogHandler(catalogUC, wishlistUC),
+		Internal:      handler.NewInternalHandler(cfg.Payment.InternalSecret, cfg.Payment.InternalIPAllowlist, orderUC),
 		Address:       handler.NewAddressHandler(userUC),
 		Cart:          handler.NewCartHandler(cartUC),
 		Checkout:      handler.NewCheckoutHandler(checkoutUC),
@@ -185,6 +198,10 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		Shipment:      handler.NewShipmentHandler(orderUC),
 		Payout:        handler.NewPayoutHandler(payoutUC, supplierRepo),
 		Review:        handler.NewReviewHandler(reviewUC, productRepo),
+		Wishlist:      handler.NewWishlistHandler(wishlistUC),
+		Banner:        handler.NewBannerHandler(bannerUC),
+		Report:        handler.NewReportHandler(reportUC, supplierRepo),
+		AdminReport:   handler.NewAdminReportHandler(adminReportUC),
 	}, nil
 }
 

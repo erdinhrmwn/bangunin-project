@@ -2,7 +2,9 @@ package queue
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 )
 
@@ -39,6 +41,30 @@ func (e *Enqueuer) EnqueueMediaProcess(key string) error {
 	_, err = e.client.Enqueue(asynq.NewTask(TaskMediaProcess, payload))
 	if err != nil {
 		return fmt.Errorf("queue: enqueue media process: %w", err)
+	}
+	return nil
+}
+
+func (e *Enqueuer) EnqueueReportGenerate(supplierID uuid.UUID, from, to time.Time) error {
+	payload, err := ReportGeneratePayload{SupplierID: supplierID, From: from, To: to}.Marshal()
+	if err != nil {
+		return fmt.Errorf("queue: marshal report generate payload: %w", err)
+	}
+	_, err = e.client.Enqueue(asynq.NewTask(TaskReportGenerate, payload))
+	if err != nil {
+		return fmt.Errorf("queue: enqueue report generate: %w", err)
+	}
+	return nil
+}
+
+func (e *Enqueuer) EnqueueAdminReportGenerate(adminID uuid.UUID, from, to time.Time) error {
+	payload, err := AdminReportGeneratePayload{AdminID: adminID, From: from, To: to}.Marshal()
+	if err != nil {
+		return fmt.Errorf("queue: marshal admin report generate payload: %w", err)
+	}
+	_, err = e.client.Enqueue(asynq.NewTask(TaskAdminReportGenerate, payload))
+	if err != nil {
+		return fmt.Errorf("queue: enqueue admin report generate: %w", err)
 	}
 	return nil
 }

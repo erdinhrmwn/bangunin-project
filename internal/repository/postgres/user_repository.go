@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -60,6 +61,15 @@ func (r *UserRepository) Update(ctx context.Context, u *entity.User) error {
 		return fmt.Errorf("postgres: update user: %w", err)
 	}
 	return nil
+}
+
+func (r *UserRepository) CountCreatedBetween(ctx context.Context, from, to time.Time) (int, error) {
+	var count int
+	const q = `SELECT count(*) FROM users WHERE created_at BETWEEN $1 AND $2`
+	if err := r.db.QueryRow(ctx, q, from, to).Scan(&count); err != nil {
+		return 0, fmt.Errorf("postgres: count users created between: %w", err)
+	}
+	return count, nil
 }
 
 func (r *UserRepository) scanOne(ctx context.Context, query string, arg any) (*entity.User, error) {

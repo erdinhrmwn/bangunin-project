@@ -11,6 +11,7 @@ import (
 	"io"
 
 	"golang.org/x/image/draw"
+
 	_ "golang.org/x/image/webp" // register webp decoder (no encoder — re-encoded as jpeg)
 )
 

@@ -8,6 +8,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	time "time"
+
 	uuid "github.com/google/uuid"
 )
 
@@ -22,6 +24,64 @@ type MockUserRepository_Expecter struct {
 
 func (_m *MockUserRepository) EXPECT() *MockUserRepository_Expecter {
 	return &MockUserRepository_Expecter{mock: &_m.Mock}
+}
+
+// CountCreatedBetween provides a mock function with given fields: ctx, from, to
+func (_m *MockUserRepository) CountCreatedBetween(ctx context.Context, from time.Time, to time.Time) (int, error) {
+	ret := _m.Called(ctx, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountCreatedBetween")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) (int, error)); ok {
+		return rf(ctx, from, to)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) int); ok {
+		r0 = rf(ctx, from, to)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, from, to)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserRepository_CountCreatedBetween_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountCreatedBetween'
+type MockUserRepository_CountCreatedBetween_Call struct {
+	*mock.Call
+}
+
+// CountCreatedBetween is a helper method to define mock.On call
+//   - ctx context.Context
+//   - from time.Time
+//   - to time.Time
+func (_e *MockUserRepository_Expecter) CountCreatedBetween(ctx interface{}, from interface{}, to interface{}) *MockUserRepository_CountCreatedBetween_Call {
+	return &MockUserRepository_CountCreatedBetween_Call{Call: _e.mock.On("CountCreatedBetween", ctx, from, to)}
+}
+
+func (_c *MockUserRepository_CountCreatedBetween_Call) Run(run func(ctx context.Context, from time.Time, to time.Time)) *MockUserRepository_CountCreatedBetween_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockUserRepository_CountCreatedBetween_Call) Return(_a0 int, _a1 error) *MockUserRepository_CountCreatedBetween_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserRepository_CountCreatedBetween_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) (int, error)) *MockUserRepository_CountCreatedBetween_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Create provides a mock function with given fields: ctx, u

@@ -6,9 +6,10 @@ import (
 
 	"erdinhrmwn/bangunin/internal/delivery/http/dto"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	cartusecase "erdinhrmwn/bangunin/internal/usecase/cart"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
+
+	cartusecase "erdinhrmwn/bangunin/internal/usecase/cart"
 )
 
 // CartHandler serves the user's shopping cart (FR-5.1), mounted under /user/cart.
@@ -59,9 +60,9 @@ func (h *CartHandler) UpdateItem(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c)
 	}
-	itemID, err := uuid.Parse(c.Params("id"))
+	itemID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	var req dto.UpdateCartItemRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -81,9 +82,9 @@ func (h *CartHandler) RemoveItem(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c)
 	}
-	itemID, err := uuid.Parse(c.Params("id"))
+	itemID, err := parseUUIDParam(c, "id")
 	if err != nil {
-		return badRequest(c)
+		return err
 	}
 	if err := h.cart.Remove(c.Context(), userID, itemID); err != nil {
 		return errJSON(c, err)

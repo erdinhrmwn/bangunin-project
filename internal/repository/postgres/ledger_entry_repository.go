@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -47,6 +48,15 @@ func (r *LedgerEntryRepository) ListBySupplier(ctx context.Context, supplierID u
 
 	out, err := collectLedgerEntries(rows)
 	return out, total, err
+}
+
+func (r *LedgerEntryRepository) SumByType(ctx context.Context, entryType string, from, to time.Time) (float64, error) {
+	var sum float64
+	const q = `SELECT COALESCE(SUM(amount), 0) FROM ledger_entries WHERE type = $1 AND created_at BETWEEN $2 AND $3`
+	if err := r.db.QueryRow(ctx, q, entryType, from, to).Scan(&sum); err != nil {
+		return 0, fmt.Errorf("postgres: sum ledger entries by type: %w", err)
+	}
+	return sum, nil
 }
 
 const selectLedgerEntryCols = `SELECT id, order_id, withdraw_request_id, supplier_id, type, amount, balance_after, created_at `
