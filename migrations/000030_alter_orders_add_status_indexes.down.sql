@@ -1,0 +1,2 @@
+DROP INDEX idx_order_status_histories_to_status_created_at;
+DROP INDEX idx_orders_status;

@@ -7,6 +7,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+
+	"erdinhrmwn/bangunin/pkg/response"
 )
 
 // HealthHandler reports app, DB, and Redis liveness.
@@ -36,23 +38,15 @@ func (h *HealthHandler) Check(c fiber.Ctx) error {
 		redisStatus = "down"
 	}
 
-	status := fiber.StatusOK
-	if dbStatus != "ok" || redisStatus != "ok" {
-		status = fiber.StatusServiceUnavailable
-	}
-
-	return c.Status(status).JSON(fiber.Map{
-		"status":  statusLabel(status),
+	healthy := dbStatus == "ok" && redisStatus == "ok"
+	data := fiber.Map{
 		"db":      dbStatus,
 		"redis":   redisStatus,
 		"version": h.version,
 		"uptime":  time.Since(h.startedAt).String(),
-	})
-}
-
-func statusLabel(httpStatus int) string {
-	if httpStatus == fiber.StatusOK {
-		return "ok"
 	}
-	return "degraded"
+	if healthy {
+		return c.Status(fiber.StatusOK).JSON(response.Success("ok", data))
+	}
+	return c.Status(fiber.StatusServiceUnavailable).JSON(response.Error("degraded", data))
 }

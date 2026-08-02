@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/subtle"
+
 	"github.com/gofiber/fiber/v3"
 
 	"erdinhrmwn/bangunin/internal/usecase/order"
@@ -42,7 +44,7 @@ type paymentCallbackRequest struct {
 // PaymentCallback handles POST /internal/payments/callback, relayed by
 // services/payment after it verifies the Xendit webhook.
 func (h *InternalHandler) PaymentCallback(c fiber.Ctx) error {
-	if c.Get("X-Internal-Secret") != h.internalSecret || !h.ipAllowed(c.IP()) {
+	if subtle.ConstantTimeCompare([]byte(c.Get("X-Internal-Secret")), []byte(h.internalSecret)) != 1 || !h.ipAllowed(c.IP()) {
 		return c.Status(fiber.StatusUnauthorized).JSON(response.Error("Invalid internal secret", nil))
 	}
 

@@ -68,6 +68,8 @@ func (h *OrderHandler) Cancel(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	// Body is optional (reason is not persisted) — a missing/empty body is fine, so
+	// the bind error is intentionally ignored rather than rejecting the request.
 	var req dto.CancelOrderRequest
 	_ = c.Bind().Body(&req)
 	if err := h.order.Cancel(c.Context(), id, userID, entity.ActorTypeUser); err != nil {

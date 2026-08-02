@@ -7,7 +7,7 @@ type ShipOrderRequest struct {
 }
 
 type ForceStatusRequest struct {
-	Status string `json:"status" validate:"required"`
+	Status string `json:"status" validate:"required,oneof=pending_payment paid processed shipped delivered completed expired cancelled"`
 	Reason string `json:"reason" validate:"required"`
 }
 
