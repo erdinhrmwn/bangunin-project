@@ -12,8 +12,47 @@ import (
 	"erdinhrmwn/bangunin/pkg/jwt"
 )
 
+// Deps groups the handlers and shared dependencies route registration needs,
+// replacing a long positional Register(...) parameter list.
+type Deps struct {
+	Health        *handler.HealthHandler
+	Auth          *handler.AuthHandler
+	User          *handler.UserHandler
+	Supplier      *handler.SupplierHandler
+	Media         *handler.MediaHandler
+	AdminSupplier *handler.AdminSupplierHandler
+	Notification  *handler.NotificationHandler
+	Category      *handler.CategoryHandler
+	Product       *handler.ProductHandler
+	Inventory     *handler.InventoryHandler
+	Catalog       *handler.CatalogHandler
+	Internal      *handler.InternalHandler
+	Address       *handler.AddressHandler
+	Cart          *handler.CartHandler
+	Checkout      *handler.CheckoutHandler
+	Order         *handler.OrderHandler
+	Shipment      *handler.ShipmentHandler
+	Payout        *handler.PayoutHandler
+	Review        *handler.ReviewHandler
+	Wishlist      *handler.WishlistHandler
+	Banner        *handler.BannerHandler
+	Report        *handler.ReportHandler
+	AdminReport   *handler.AdminReportHandler
+	JWT           *jwt.Service
+	AuthRepo      repository.AuthRepository
+	Suppliers     repository.SupplierRepository
+	Redis         *redis.Client
+}
+
 // Register mounts all routes on app.
-func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthHandler, user *handler.UserHandler, supplier *handler.SupplierHandler, media *handler.MediaHandler, adminSupplier *handler.AdminSupplierHandler, notification *handler.NotificationHandler, category *handler.CategoryHandler, product *handler.ProductHandler, inventory *handler.InventoryHandler, catalog *handler.CatalogHandler, internal *handler.InternalHandler, address *handler.AddressHandler, cart *handler.CartHandler, checkout *handler.CheckoutHandler, order *handler.OrderHandler, shipment *handler.ShipmentHandler, payout *handler.PayoutHandler, review *handler.ReviewHandler, wishlist *handler.WishlistHandler, banner *handler.BannerHandler, report *handler.ReportHandler, adminReport *handler.AdminReportHandler, jwtSvc *jwt.Service, authRepo repository.AuthRepository, suppliers repository.SupplierRepository, redisClient *redis.Client) {
+func Register(app *fiber.App, d Deps) {
+	health, auth, user, supplier, media := d.Health, d.Auth, d.User, d.Supplier, d.Media
+	adminSupplier, notification, category, product, inventory := d.AdminSupplier, d.Notification, d.Category, d.Product, d.Inventory
+	catalog, internal, address, cart, checkout := d.Catalog, d.Internal, d.Address, d.Cart, d.Checkout
+	order, shipment, payout, review, wishlist := d.Order, d.Shipment, d.Payout, d.Review, d.Wishlist
+	banner, report, adminReport := d.Banner, d.Report, d.AdminReport
+	jwtSvc, authRepo, suppliers, redisClient := d.JWT, d.AuthRepo, d.Suppliers, d.Redis
+
 	app.Get("/health", health.Check)
 
 	// No auth middleware — protected by X-Internal-Secret header check in the handler (FR-5.6).

@@ -36,7 +36,14 @@ func (c *Container) Run() error {
 	app.Use(middleware.CORS(nil))
 	app.Use(middleware.RateLimit(c.redis))
 
-	route.Register(app, c.health, c.auth, c.user, c.supplier, c.media, c.adminSupplier, c.notification, c.category, c.product, c.inventory, c.catalog, c.internal, c.address, c.cart, c.checkout, c.order, c.shipment, c.payout, c.review, c.wishlist, c.banner, c.report, c.adminReport, c.jwt, c.authRepo, c.supplierRepo, c.redis)
+	route.Register(app, route.Deps{
+		Health: c.health, Auth: c.auth, User: c.user, Supplier: c.supplier, Media: c.media,
+		AdminSupplier: c.adminSupplier, Notification: c.notification, Category: c.category, Product: c.product, Inventory: c.inventory,
+		Catalog: c.catalog, Internal: c.internal, Address: c.address, Cart: c.cart, Checkout: c.checkout,
+		Order: c.order, Shipment: c.shipment, Payout: c.payout, Review: c.review, Wishlist: c.wishlist,
+		Banner: c.banner, Report: c.report, AdminReport: c.adminReport,
+		JWT: c.jwt, AuthRepo: c.authRepo, Suppliers: c.supplierRepo, Redis: c.redis,
+	})
 
 	errCh := make(chan error, 1)
 	go func() {
