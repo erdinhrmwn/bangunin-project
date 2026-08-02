@@ -3,7 +3,10 @@
 package report
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -73,6 +76,29 @@ func (u *Usecase) Export(ctx context.Context, supplierID uuid.UUID, from, to tim
 	return u.report.EnqueueReportGenerate(supplierID, from, to)
 }
 
+// BuildCSV renders a supplier Summary as CSV, for the report:generate worker task.
+func (s *Summary) BuildCSV() ([]byte, error) {
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{"GMV", "Orders", "AOV"})
+	_ = w.Write([]string{fmt.Sprintf("%.2f", s.GMV), fmt.Sprintf("%d", s.OrdersCount), fmt.Sprintf("%.2f", s.AOV)})
+	_ = w.Write([]string{})
+	_ = w.Write([]string{"Product", "Qty", "Revenue"})
+	for _, tp := range s.TopProducts {
+		_ = w.Write([]string{tp.ProductName, fmt.Sprintf("%d", tp.Qty), fmt.Sprintf("%.2f", tp.Revenue)})
+	}
+	_ = w.Write([]string{})
+	_ = w.Write([]string{"Day", "GMV", "Orders"})
+	for _, d := range s.SalesPerDay {
+		_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, fmt.Errorf("report: write csv: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
 // AdminSummary is the platform-wide summary for FR-7.4.
 type AdminSummary struct {
 	GMV             float64
@@ -139,4 +165,30 @@ func (u *AdminUsecase) GetSummary(ctx context.Context, from, to time.Time) (*Adm
 // and notifies the requesting admin with a presigned download link (FR-7.4).
 func (u *AdminUsecase) Export(ctx context.Context, adminID uuid.UUID, from, to time.Time) error {
 	return u.report.EnqueueAdminReportGenerate(adminID, from, to)
+}
+
+// BuildCSV renders an AdminSummary as CSV, for the report:generate-admin worker task.
+func (s *AdminSummary) BuildCSV() ([]byte, error) {
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{"GMV", "Commission", "ActiveSuppliers", "NewUsers"})
+	_ = w.Write([]string{
+		fmt.Sprintf("%.2f", s.GMV), fmt.Sprintf("%.2f", s.Commission),
+		fmt.Sprintf("%d", s.ActiveSuppliers), fmt.Sprintf("%d", s.NewUsers),
+	})
+	_ = w.Write([]string{})
+	_ = w.Write([]string{"Status", "Count"})
+	for status, count := range s.OrdersByStatus {
+		_ = w.Write([]string{status, fmt.Sprintf("%d", count)})
+	}
+	_ = w.Write([]string{})
+	_ = w.Write([]string{"Day", "GMV", "Orders"})
+	for _, d := range s.SalesPerDay {
+		_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, fmt.Errorf("report: write admin csv: %w", err)
+	}
+	return buf.Bytes(), nil
 }

@@ -4,7 +4,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -182,26 +181,10 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("report:generate: get summary: %w", err)
 		}
-
-		var buf bytes.Buffer
-		w := csv.NewWriter(&buf)
-		_ = w.Write([]string{"GMV", "Orders", "AOV"})
-		_ = w.Write([]string{fmt.Sprintf("%.2f", summary.GMV), fmt.Sprintf("%d", summary.OrdersCount), fmt.Sprintf("%.2f", summary.AOV)})
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Product", "Qty", "Revenue"})
-		for _, tp := range summary.TopProducts {
-			_ = w.Write([]string{tp.ProductName, fmt.Sprintf("%d", tp.Qty), fmt.Sprintf("%.2f", tp.Revenue)})
+		data, err := summary.BuildCSV()
+		if err != nil {
+			return fmt.Errorf("report:generate: %w", err)
 		}
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Day", "GMV", "Orders"})
-		for _, d := range summary.SalesPerDay {
-			_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
-		}
-		w.Flush()
-		if err := w.Error(); err != nil {
-			return fmt.Errorf("report:generate: write csv: %w", err)
-		}
-		data := buf.Bytes()
 
 		id, err := uuid.NewV7()
 		if err != nil {
@@ -238,29 +221,10 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("report:generate-admin: get summary: %w", err)
 		}
-
-		var buf bytes.Buffer
-		w := csv.NewWriter(&buf)
-		_ = w.Write([]string{"GMV", "Commission", "ActiveSuppliers", "NewUsers"})
-		_ = w.Write([]string{
-			fmt.Sprintf("%.2f", summary.GMV), fmt.Sprintf("%.2f", summary.Commission),
-			fmt.Sprintf("%d", summary.ActiveSuppliers), fmt.Sprintf("%d", summary.NewUsers),
-		})
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Status", "Count"})
-		for status, count := range summary.OrdersByStatus {
-			_ = w.Write([]string{status, fmt.Sprintf("%d", count)})
+		data, err := summary.BuildCSV()
+		if err != nil {
+			return fmt.Errorf("report:generate-admin: %w", err)
 		}
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Day", "GMV", "Orders"})
-		for _, d := range summary.SalesPerDay {
-			_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
-		}
-		w.Flush()
-		if err := w.Error(); err != nil {
-			return fmt.Errorf("report:generate-admin: write csv: %w", err)
-		}
-		data := buf.Bytes()
 
 		id, err := uuid.NewV7()
 		if err != nil {
