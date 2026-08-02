@@ -94,9 +94,16 @@ func (h *OrderHandler) GetSupplier(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	supplierID, err := resolveSupplierID(c, h.suppliers)
+	if err != nil {
+		return errJSON(c, err)
+	}
 	o, err := h.order.Get(c.Context(), id)
 	if err != nil {
 		return errJSON(c, err)
+	}
+	if o.SupplierID != supplierID {
+		return errJSON(c, apperr.New("FORBIDDEN", "Order does not belong to you", 403))
 	}
 	return c.JSON(response.Success("OK", o))
 }
