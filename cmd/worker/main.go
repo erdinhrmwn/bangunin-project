@@ -85,7 +85,7 @@ func main() {
 		return nil
 	})
 
-	notifier, err := grpcclient.NewNotificationClient(cfg.Notification.GRPCAddr)
+	notifier, err := grpcclient.NewNotificationClient(cfg.Notification.GRPCAddr, cfg.App.Env)
 	if err != nil {
 		fatal(err)
 	}

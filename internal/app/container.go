@@ -125,7 +125,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	stockLock := redisrepo.NewStockLock(rdb)
 	quotesStore := redisrepo.NewKVStore(rdb)
 	shippingGW := rajaongkir.New(cfg.RajaOngkir)
-	paymentClient, err := grpcclient.NewPaymentClient(cfg.Payment.GRPCAddr)
+	paymentClient, err := grpcclient.NewPaymentClient(cfg.Payment.GRPCAddr, cfg.App.Env)
 	if err != nil {
 		db.Close()
 		_ = rdb.Close()

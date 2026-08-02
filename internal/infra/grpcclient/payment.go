@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	paymentv1 "erdinhrmwn/bangunin/proto/payment/v1"
 )
@@ -17,8 +16,10 @@ type PaymentClient struct {
 	client paymentv1.PaymentServiceClient
 }
 
-func NewPaymentClient(addr string) (*PaymentClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// NewPaymentClient dials addr, using TLS unless env is "development" (local
+// docker-compose talks plaintext between containers).
+func NewPaymentClient(addr, env string) (*PaymentClient, error) {
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(transportCredentials(env)))
 	if err != nil {
 		return nil, fmt.Errorf("grpcclient: dial payment-service: %w", err)
 	}
