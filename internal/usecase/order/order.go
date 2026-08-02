@@ -13,6 +13,7 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/service"
+	"erdinhrmwn/bangunin/internal/pkg/notify"
 	"erdinhrmwn/bangunin/pkg/apperr"
 )
 
@@ -484,16 +485,7 @@ func (u *Usecase) notifySupplier(ctx context.Context, o *entity.Order, title, bo
 }
 
 func (u *Usecase) notifyUser(ctx context.Context, userID uuid.UUID, title, body string) {
-	notifID, err := uuid.NewV7()
-	if err != nil {
-		return
-	}
-	_ = u.notify.Create(ctx, &entity.Notification{
-		ID: notifID, UserID: userID, Type: entity.NotificationTypeOrderUpdate, Title: title, Body: body,
-	})
-	if usr, err := u.users.FindByID(ctx, userID); err == nil {
-		_ = u.email.EnqueueEmail(usr.Email, title, body)
-	}
+	_ = notify.SendWithEmail(ctx, u.notify, u.users, u.email, userID, entity.NotificationTypeOrderUpdate, title, body)
 }
 
 func mustNewV7() uuid.UUID {

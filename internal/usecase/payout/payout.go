@@ -14,6 +14,7 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/service"
+	"erdinhrmwn/bangunin/internal/pkg/notify"
 	"erdinhrmwn/bangunin/pkg/apperr"
 )
 
@@ -254,21 +255,7 @@ func (u *Usecase) recordAndNotify(ctx context.Context, actorID uuid.UUID, w *ent
 	}
 
 	title, body := withdrawNotificationText(action, reason, w.Amount)
-	notifID, err := uuid.NewV7()
-	if err != nil {
-		return fmt.Errorf("payout: generate notification id: %w", err)
-	}
-	if err := u.notify.Create(ctx, &entity.Notification{
-		ID: notifID, UserID: s.UserID, Type: entity.NotificationTypePayout, Title: title, Body: body,
-	}); err != nil {
-		return err
-	}
-
-	usr, err := u.users.FindByID(ctx, s.UserID)
-	if err != nil {
-		return err
-	}
-	return u.email.EnqueueEmail(usr.Email, title, body)
+	return notify.SendWithEmail(ctx, u.notify, u.users, u.email, s.UserID, entity.NotificationTypePayout, title, body)
 }
 
 func withdrawNotificationText(action, reason string, amount float64) (title, body string) {
