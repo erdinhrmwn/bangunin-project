@@ -20,10 +20,10 @@ import (
 func (c *Container) Run() error {
 	app := fiber.New()
 
-	app.Get("/metrics", middleware.MetricsHandler())
 	middleware.StartQueueSizeExporter(asynq.RedisClientOpt{Addr: c.Config.Redis.Addr, Password: c.Config.Redis.Password, DB: c.Config.Redis.DB}, 15*time.Second)
 
 	app.Use(middleware.Recover(c.Logger))
+	app.Get("/metrics", middleware.MetricsHandler())
 	app.Use(middleware.RequestID())
 	app.Use(middleware.RequestLog(c.Logger))
 	app.Use(middleware.Metrics)
