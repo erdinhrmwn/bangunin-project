@@ -85,6 +85,23 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID uuid.UUID, pa
 	return out, total, err
 }
 
+func (r *OrderRepository) ListAll(ctx context.Context, page, perPage int) ([]*entity.Order, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM orders`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("postgres: count orders: %w", err)
+	}
+	rows, err := r.db.Query(ctx,
+		selectOrderCols+`FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		perPage, (page-1)*perPage,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("postgres: list orders: %w", err)
+	}
+	defer rows.Close()
+	out, err := collectOrders(rows)
+	return out, total, err
+}
+
 func (r *OrderRepository) ListBySupplierID(ctx context.Context, supplierID uuid.UUID, page, perPage int) ([]*entity.Order, int, error) {
 	var total int
 	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM orders WHERE supplier_id = $1`, supplierID).Scan(&total); err != nil {

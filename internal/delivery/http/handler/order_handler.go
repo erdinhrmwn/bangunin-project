@@ -161,15 +161,24 @@ func (h *OrderHandler) Deliver(c fiber.Ctx) error {
 }
 
 func (h *OrderHandler) ListAdmin(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
-	if err == nil {
-		o, err := h.order.Get(c.Context(), id)
-		if err != nil {
-			return errJSON(c, err)
-		}
-		return c.JSON(response.Success("OK", o))
+	p := pagination.Parse(c.Query("page"), c.Query("per_page"))
+	orders, total, err := h.order.ListAll(c.Context(), p.Page, p.PerPage)
+	if err != nil {
+		return errJSON(c, err)
 	}
-	return badRequest(c)
+	return c.JSON(response.SuccessPaginated("OK", orders, response.Meta{Page: p.Page, PerPage: p.PerPage, Total: total}))
+}
+
+func (h *OrderHandler) GetAdmin(c fiber.Ctx) error {
+	id, err := parseUUIDParam(c, "id")
+	if err != nil {
+		return err
+	}
+	o, err := h.order.Get(c.Context(), id)
+	if err != nil {
+		return errJSON(c, err)
+	}
+	return c.JSON(response.Success("OK", o))
 }
 
 func (h *OrderHandler) ForceStatus(c fiber.Ctx) error {

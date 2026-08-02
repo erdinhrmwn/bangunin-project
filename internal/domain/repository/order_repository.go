@@ -15,6 +15,7 @@ type OrderRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*entity.Order, error)
 	ListByCheckoutGroupID(ctx context.Context, checkoutGroupID uuid.UUID) ([]*entity.Order, error)
 	ListByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*entity.Order, int, error)
+	ListAll(ctx context.Context, page, perPage int) ([]*entity.Order, int, error)
 	ListBySupplierID(ctx context.Context, supplierID uuid.UUID, page, perPage int) ([]*entity.Order, int, error)
 	// ListDeliveredBefore returns orders in 'delivered' status whose
 	// implicit delivered_at (from shipments) is before cutoff, for the

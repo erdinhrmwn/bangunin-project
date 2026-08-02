@@ -111,7 +111,7 @@ func Register(app *fiber.App, health *handler.HealthHandler, auth *handler.AuthH
 	adminGroup.Put("/categories/:id", category.Update)
 	adminGroup.Delete("/categories/:id", category.Delete)
 	adminGroup.Get("/orders", order.ListAdmin)
-	adminGroup.Get("/orders/:id", order.ListAdmin)
+	adminGroup.Get("/orders/:id", order.GetAdmin)
 	adminGroup.Post("/orders/:id/force-status", order.ForceStatus)
 	adminGroup.Get("/withdraws", payout.ListAdmin)
 	adminGroup.Get("/withdraws/:id", payout.GetAdmin)

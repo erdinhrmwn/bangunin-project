@@ -132,6 +132,10 @@ func (u *Usecase) ListByUser(ctx context.Context, userID uuid.UUID, page, perPag
 	return u.orders.ListByUserID(ctx, userID, page, perPage)
 }
 
+func (u *Usecase) ListAll(ctx context.Context, page, perPage int) ([]*entity.Order, int, error) {
+	return u.orders.ListAll(ctx, page, perPage)
+}
+
 func (u *Usecase) ListBySupplier(ctx context.Context, supplierID uuid.UUID, page, perPage int) ([]*entity.Order, int, error) {
 	return u.orders.ListBySupplierID(ctx, supplierID, page, perPage)
 }
