@@ -261,34 +261,30 @@ func (r *OrderRepository) SalesPerDay(ctx context.Context, supplierID uuid.UUID,
 }
 
 func (r *OrderRepository) PlatformSummary(ctx context.Context, from, to time.Time) (float64, map[string]int, error) {
-	var gmv float64
-	const gmvQ = `
-		SELECT COALESCE(SUM(total), 0) FROM orders
-		WHERE status = 'completed' AND created_at BETWEEN $1 AND $2
-	`
-	if err := r.db.QueryRow(ctx, gmvQ, from, to).Scan(&gmv); err != nil {
-		return 0, nil, fmt.Errorf("postgres: platform summary gmv: %w", err)
-	}
-
-	const statusQ = `
-		SELECT status, COUNT(*) FROM orders
+	const q = `
+		SELECT status, COUNT(*), COALESCE(SUM(total), 0) FROM orders
 		WHERE created_at BETWEEN $1 AND $2
 		GROUP BY status
 	`
-	rows, err := r.db.Query(ctx, statusQ, from, to)
+	rows, err := r.db.Query(ctx, q, from, to)
 	if err != nil {
-		return 0, nil, fmt.Errorf("postgres: platform summary by status: %w", err)
+		return 0, nil, fmt.Errorf("postgres: platform summary: %w", err)
 	}
 	defer rows.Close()
 
+	var gmv float64
 	byStatus := map[string]int{}
 	for rows.Next() {
 		var status string
 		var count int
-		if err := rows.Scan(&status, &count); err != nil {
-			return 0, nil, fmt.Errorf("postgres: scan platform summary status: %w", err)
+		var statusTotal float64
+		if err := rows.Scan(&status, &count, &statusTotal); err != nil {
+			return 0, nil, fmt.Errorf("postgres: scan platform summary: %w", err)
 		}
 		byStatus[status] = count
+		if status == "completed" {
+			gmv = statusTotal
+		}
 	}
 	return gmv, byStatus, rows.Err()
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
@@ -37,18 +38,28 @@ func New(orders repository.OrderRepository, report service.ReportEnqueuer) *Usec
 // GetSummary aggregates GMV/orders/AOV/top-products/sales-per-day for a
 // supplier's completed orders within [from, to] (FR-7.3).
 func (u *Usecase) GetSummary(ctx context.Context, supplierID uuid.UUID, from, to time.Time) (*Summary, error) {
-	gmv, count, err := u.orders.SalesSummary(ctx, supplierID, from, to)
-	if err != nil {
+	var gmv float64
+	var count int
+	var top []*entity.TopProduct
+	var perDay []*entity.DailySales
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+		gmv, count, err = u.orders.SalesSummary(gctx, supplierID, from, to)
+		return err
+	})
+	g.Go(func() (err error) {
+		top, err = u.orders.TopProducts(gctx, supplierID, from, to, topProductsLimit)
+		return err
+	})
+	g.Go(func() (err error) {
+		perDay, err = u.orders.SalesPerDay(gctx, supplierID, from, to)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	top, err := u.orders.TopProducts(ctx, supplierID, from, to, topProductsLimit)
-	if err != nil {
-		return nil, err
-	}
-	perDay, err := u.orders.SalesPerDay(ctx, supplierID, from, to)
-	if err != nil {
-		return nil, err
-	}
+
 	var aov float64
 	if count > 0 {
 		aov = gmv / float64(count)
@@ -88,26 +99,36 @@ func NewAdmin(orders repository.OrderRepository, ledger repository.LedgerEntryRe
 // GetSummary aggregates GMV/commission/orders-by-status/active-suppliers/
 // new-users/sales-per-day platform-wide within [from, to] (FR-7.4).
 func (u *AdminUsecase) GetSummary(ctx context.Context, from, to time.Time) (*AdminSummary, error) {
-	gmv, byStatus, err := u.orders.PlatformSummary(ctx, from, to)
-	if err != nil {
+	var gmv, commission float64
+	var byStatus map[string]int
+	var activeSuppliers, newUsers int
+	var perDay []*entity.DailySales
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+		gmv, byStatus, err = u.orders.PlatformSummary(gctx, from, to)
+		return err
+	})
+	g.Go(func() (err error) {
+		commission, err = u.ledger.SumByType(gctx, entity.LedgerTypeDebitCommission, from, to)
+		return err
+	})
+	g.Go(func() (err error) {
+		_, activeSuppliers, err = u.suppliers.List(gctx, "approved", "", 1, 1)
+		return err
+	})
+	g.Go(func() (err error) {
+		newUsers, err = u.users.CountCreatedBetween(gctx, from, to)
+		return err
+	})
+	g.Go(func() (err error) {
+		perDay, err = u.orders.PlatformSalesPerDay(gctx, from, to)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	commission, err := u.ledger.SumByType(ctx, entity.LedgerTypeDebitCommission, from, to)
-	if err != nil {
-		return nil, err
-	}
-	_, activeSuppliers, err := u.suppliers.List(ctx, "approved", "", 1, 1)
-	if err != nil {
-		return nil, err
-	}
-	newUsers, err := u.users.CountCreatedBetween(ctx, from, to)
-	if err != nil {
-		return nil, err
-	}
-	perDay, err := u.orders.PlatformSalesPerDay(ctx, from, to)
-	if err != nil {
-		return nil, err
-	}
+
 	return &AdminSummary{
 		GMV: gmv, Commission: commission, OrdersByStatus: byStatus,
 		ActiveSuppliers: activeSuppliers, NewUsers: newUsers, SalesPerDay: perDay,
