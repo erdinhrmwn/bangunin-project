@@ -20,7 +20,9 @@ func AuthRateLimit(client *redis.Client) fiber.Handler {
 		Expiration:        time.Minute,
 		Storage:           fiberredis.NewFromConnection(client),
 		LimiterMiddleware: limiter.SlidingWindow{},
-		KeyGenerator:      func(c fiber.Ctx) string { return c.IP() },
+		// Prefixed so this limiter's Redis keys never collide with
+		// RateLimit's — the underlying storage has no per-instance namespace.
+		KeyGenerator: func(c fiber.Ctx) string { return "ratelimit:auth:" + c.IP() },
 		LimitReached: func(c fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(
 				response.Error("Too many requests, please try again later", nil),
