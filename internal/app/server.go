@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,7 +21,10 @@ import (
 func (c *Container) Run() error {
 	app := fiber.New()
 
-	middleware.StartQueueSizeExporter(asynq.RedisClientOpt{Addr: c.Config.Redis.Addr, Password: c.Config.Redis.Password, DB: c.Config.Redis.DB}, 15*time.Second)
+	exporterCtx, cancelExporter := context.WithCancel(context.Background())
+	stopExporter := middleware.StartQueueSizeExporter(exporterCtx, asynq.RedisClientOpt{Addr: c.Config.Redis.Addr, Password: c.Config.Redis.Password, DB: c.Config.Redis.DB}, 15*time.Second)
+	defer stopExporter()
+	defer cancelExporter()
 
 	app.Use(middleware.Recover(c.Logger))
 	app.Get("/metrics", middleware.MetricsHandler())

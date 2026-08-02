@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"strconv"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -48,23 +50,38 @@ func MetricsHandler() fiber.Handler {
 }
 
 // StartQueueSizeExporter polls Asynq queue depths every interval and updates
-// the asynq_queue_size gauge. Runs until ctx is done.
-func StartQueueSizeExporter(redisOpt asynq.RedisClientOpt, interval time.Duration) {
+// the asynq_queue_size gauge, until ctx is cancelled (caller should cancel
+// on shutdown, and must call the returned stop func to close the inspector).
+func StartQueueSizeExporter(ctx context.Context, redisOpt asynq.RedisClientOpt, interval time.Duration) (stop func()) {
 	inspector := asynq.NewInspector(redisOpt)
 	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 		for {
 			queues, err := inspector.Queues()
 			if err == nil {
+				g, gctx := errgroup.WithContext(ctx)
 				for _, q := range queues {
-					if info, err := inspector.GetQueueInfo(q); err == nil {
+					g.Go(func() error {
+						info, err := inspector.GetQueueInfo(q)
+						if err != nil {
+							return nil
+						}
 						asynqQueueSize.WithLabelValues(q, "pending").Set(float64(info.Pending))
 						asynqQueueSize.WithLabelValues(q, "active").Set(float64(info.Active))
 						asynqQueueSize.WithLabelValues(q, "scheduled").Set(float64(info.Scheduled))
 						asynqQueueSize.WithLabelValues(q, "retry").Set(float64(info.Retry))
-					}
+						return gctx.Err()
+					})
 				}
+				_ = g.Wait()
 			}
-			time.Sleep(interval)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 		}
 	}()
+	return func() { _ = inspector.Close() }
 }
