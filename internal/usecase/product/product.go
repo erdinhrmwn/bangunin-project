@@ -16,7 +16,6 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository"
-	"erdinhrmwn/bangunin/internal/usecase/catalog"
 	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/cache"
 )
@@ -37,7 +36,7 @@ func New(products repository.ProductRepository, variants repository.ProductVaria
 // invalidateDetail deletes the public catalog cache entry for slug (FR-4.7,
 // AC-4.d: edits must be visible without waiting for the TTL).
 func (u *Usecase) invalidateDetail(ctx context.Context, slug string) {
-	_ = cache.Delete(ctx, u.rdb, catalog.ProductDetailCacheKey(slug))
+	_ = cache.Delete(ctx, u.rdb, cache.ProductDetailKey(slug))
 }
 
 type ProductInput struct {

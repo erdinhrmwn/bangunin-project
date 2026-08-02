@@ -47,3 +47,10 @@ func Delete(ctx context.Context, rdb *redis.Client, key string) error {
 	}
 	return nil
 }
+
+// ProductDetailKey is the cache key for a product detail lookup, shared
+// between the catalog usecase (reader) and product usecase (invalidator on
+// mutation) so neither has to import the other.
+func ProductDetailKey(slug string) string {
+	return "catalog:product:" + slug
+}

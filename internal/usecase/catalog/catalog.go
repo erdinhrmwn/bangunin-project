@@ -1,7 +1,7 @@
 // Package catalog implements the public storefront (FR-4.6–FR-4.9): product
 // search, product detail, and supplier store pages. Product detail is
 // cache-aside 60s, invalidated by the product usecase on mutation via
-// ProductDetailCacheKey.
+// cache.ProductDetailKey.
 package catalog
 
 import (
@@ -28,12 +28,6 @@ func New(products repository.ProductRepository, suppliers repository.SupplierRep
 	return &Usecase{products: products, suppliers: suppliers, rdb: rdb}
 }
 
-// ProductDetailCacheKey is exported so the product usecase can invalidate
-// this cache on mutation without duplicating the key format.
-func ProductDetailCacheKey(slug string) string {
-	return "catalog:product:" + slug
-}
-
 // Search returns the public catalog listing (FR-4.6). Filtering to active
 // products from approved suppliers happens in the repository query.
 func (u *Usecase) Search(ctx context.Context, params repository.SearchParams) ([]*repository.ProductSummary, string, error) {
@@ -42,7 +36,7 @@ func (u *Usecase) Search(ctx context.Context, params repository.SearchParams) ([
 
 // Detail returns a published product by slug, cache-aside 60s (FR-4.7).
 func (u *Usecase) Detail(ctx context.Context, slug string) (*entity.Product, error) {
-	key := ProductDetailCacheKey(slug)
+	key := cache.ProductDetailKey(slug)
 	if cached, ok, err := cache.GetJSON[*entity.Product](ctx, u.rdb, key); err == nil && ok {
 		return cached, nil
 	}
