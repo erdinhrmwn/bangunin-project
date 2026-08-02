@@ -161,7 +161,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		auditLogRepo, notificationRepo, enqueuer, ledgerRepo, paymentClient,
 	)
 	reviewUC := reviewusecase.New(reviewRepo, orderRepo, productVariantRepo, productRepo)
-	wishlistUC := wishlistusecase.New(wishlistRepo, productRepo)
+	wishlistUC := wishlistusecase.New(wishlistRepo, productRepo, rdb)
 	bannerUC := bannerusecase.New(bannerRepo, rdb)
 	reportUC := reportusecase.New(orderRepo, enqueuer)
 	adminReportUC := reportusecase.NewAdmin(orderRepo, ledgerRepo, supplierRepo, userRepo, enqueuer)
