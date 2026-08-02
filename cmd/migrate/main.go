@@ -13,10 +13,10 @@ import (
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
+	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"erdinhrmwn/bangunin/config"
 	"erdinhrmwn/bangunin/internal/infra/database"
@@ -47,13 +47,13 @@ func main() {
 		fatal(fmt.Errorf("migrate: -cmd must be one of up|down|create"))
 	}
 
-	db, err := sql.Open("postgres", cfg.DB.DSN)
+	db, err := sql.Open("pgx", cfg.DB.DSN)
 	if err != nil {
 		fatal(err)
 	}
 	defer func() { _ = db.Close() }()
 
-	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	driver, err := pgxmigrate.WithInstance(db, &pgxmigrate.Config{})
 	if err != nil {
 		fatal(err)
 	}
@@ -63,7 +63,7 @@ func main() {
 		fatal(err)
 	}
 
-	m, err := migrate.NewWithInstance("iofs", src, "postgres", driver)
+	m, err := migrate.NewWithInstance("iofs", src, "pgx", driver)
 	if err != nil {
 		fatal(err)
 	}

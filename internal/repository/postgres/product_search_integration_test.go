@@ -19,8 +19,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	migratepg "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/lib/pq"
+	migratepg "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"erdinhrmwn/bangunin/config"
@@ -50,7 +50,7 @@ func setupDB(t *testing.T) *pgxpool.Pool {
 	dsn, err := ctr.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
-	sdb, err := sql.Open("postgres", dsn)
+	sdb, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	defer sdb.Close()
 
@@ -58,7 +58,7 @@ func setupDB(t *testing.T) *pgxpool.Pool {
 	require.NoError(t, err)
 	src, err := iofs.New(migrations.FS, ".")
 	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("iofs", src, "postgres", driver)
+	m, err := migrate.NewWithInstance("iofs", src, "pgx", driver)
 	require.NoError(t, err)
 	require.NoError(t, m.Up())
 
