@@ -69,6 +69,17 @@ func main() {
 
 	srv := asynq.NewServer(redisOpt, asynq.Config{})
 	mux := asynq.NewServeMux()
+	mux.Use(func(next asynq.Handler) asynq.Handler {
+		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Str("task_type", t.Type()).Msg("recovered panic in task handler")
+					err = fmt.Errorf("task %s: panic: %v", t.Type(), r)
+				}
+			}()
+			return next.ProcessTask(ctx, t)
+		})
+	})
 	mux.HandleFunc(queue.TaskHeartbeat, func(ctx context.Context, t *asynq.Task) error {
 		log.Info().Msg("heartbeat")
 		return nil
