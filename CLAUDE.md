@@ -8,7 +8,7 @@ Marketplace vertikal khusus bahan bangunan & material konstruksi Indonesia. Supp
 
 ## 2. Tech Stack (FINAL — jangan diganti)
 
-- **Go 1.23+**, HTTP framework **Fiber v3** (pin versi di go.mod; v3 masih RC — isolasi semua kode Fiber di `internal/delivery/http`)
+- **Go 1.25+** (syarat minimum Fiber v3), HTTP framework **Fiber v3** (SUDAH RILIS STABIL v3.0+; handler `func(c fiber.Ctx) error` tanpa pointer, binding `c.Bind().Body()` — lihat docs/packages-reference.md §1; isolasi semua kode Fiber di `internal/delivery/http`)
 - **PostgreSQL 16** (pgx + sqlc), **Redis 7** (cache, session, rate limit, stock lock, backend Asynq)
 - **Asynq** untuk background jobs + scheduler
 - **gRPC** ke 2 service eksternal terpisah: payment-service (Xendit) & notification-service (Mailjet). Kontrak di `proto/`
@@ -63,6 +63,7 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete hanya jika perlu (default: tid
 
 ## 7. Konvensi Kode
 
+- **SEBELUM memakai API suatu package, baca docs/packages-reference.md terlebih dahulu** — itu sumber kebenaran pertama untuk sintaks & pola setiap dependency (Fiber v3, pgx, sqlc, Asynq, dll). Jangan menebak API dari ingatan dan jangan memakai pola Fiber v2. Jika menemukan API yang berbeda dari dokumen, perbaiki dokumennya dalam commit yang sama.
 - Bahasa kode/komentar/commit: English. Pesan error ke user (response message): Bahasa Indonesia.
 - Nama file snake_case, package singular pendek.
 - Setiap usecase punya unit test (mock repo via mockery). Repository ditest dengan testcontainers.
