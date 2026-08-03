@@ -6,14 +6,22 @@ package checkout
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
+	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/service"
 	"erdinhrmwn/bangunin/pkg/apperr"
@@ -25,6 +33,10 @@ const (
 	reservationTTL = 2 * time.Hour
 	lockTTL        = 10 * time.Second
 	commissionRate = 0.04
+	// quoteTTL: ponytail: fixed window a client has to Confirm after
+	// Preview before the quoted shipping cost expires; promote to config
+	// if ops needs to tune it per-environment.
+	quoteTTL = 15 * time.Minute
 )
 
 type Usecase struct {
@@ -39,6 +51,7 @@ type Usecase struct {
 	shippingGW     service.ShippingGateway
 	paymentGW      service.PaymentGateway
 	lock           *infraredis.StockLock
+	quotes         *infraredis.KVStore
 }
 
 func New(
@@ -53,12 +66,72 @@ func New(
 	shippingGW service.ShippingGateway,
 	paymentGW service.PaymentGateway,
 	lock *infraredis.StockLock,
+	quotes *infraredis.KVStore,
 ) *Usecase {
 	return &Usecase{
 		checkoutGroups: checkoutGroups, payments: payments, reservations: reservations,
 		addresses: addresses, carts: carts, variants: variants, products: products,
 		suppliers: suppliers, shippingGW: shippingGW, paymentGW: paymentGW, lock: lock,
+		quotes: quotes,
 	}
+}
+
+// basketFingerprint deterministically encodes the requested items (sorted by
+// variant ID) so a cached shipping quote can be tied to the exact basket
+// that produced it — otherwise a quote for one basket could validate a
+// Confirm for a completely different (cheaper-to-ship) one.
+func basketFingerprint(items []ItemRequest) string {
+	sorted := make([]ItemRequest, len(items))
+	copy(sorted, items)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].VariantID.String() < sorted[j].VariantID.String() })
+	parts := make([]string, len(sorted))
+	for i, it := range sorted {
+		parts[i] = it.VariantID.String() + ":" + strconv.Itoa(it.Qty)
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, ",")))
+	return hex.EncodeToString(sum[:])
+}
+
+// quoteKey scopes cached shipping quotes to the user + delivery address +
+// exact basket contents, so a quote can't validate a Confirm for a different
+// address or a different set of items (price-manipulation fix, AC-5-related).
+func quoteKey(userID, addressID uuid.UUID, basket string) string {
+	return "checkout_quote:" + userID.String() + ":" + addressID.String() + ":" + basket
+}
+
+// validateShippingCosts rejects any ConfirmGroupChoice whose client-supplied
+// ShippingCost doesn't match one of the costs Preview actually quoted for
+// that supplier (courier options or the fleet flat rate), closing the price-
+// manipulation gap where a client could set an arbitrary ShippingCost.
+func (u *Usecase) validateShippingCosts(ctx context.Context, userID, addressID uuid.UUID, items []ItemRequest, choices []ConfirmGroupChoice) error {
+	raw, err := u.quotes.Get(ctx, quoteKey(userID, addressID, basketFingerprint(items)))
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return apperr.New("QUOTE_EXPIRED", "Shipping quote expired, please preview checkout again", 422)
+		}
+		return fmt.Errorf("checkout: get cached shipping quote: %w", err)
+	}
+	var quoted map[string][]float64
+	if err := json.Unmarshal([]byte(raw), &quoted); err != nil {
+		return fmt.Errorf("checkout: unmarshal cached shipping quote: %w", err)
+	}
+	for _, c := range choices {
+		costs, ok := quoted[c.SupplierID.String()]
+		if !ok {
+			return apperr.New("QUOTE_EXPIRED", "Shipping quote expired, please preview checkout again", 422)
+		}
+		match := false
+		for _, cost := range costs {
+			if cost == c.ShippingCost {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return apperr.New("SHIPPING_COST_MISMATCH", "Shipping cost does not match the previewed quote", 422)
+		}
+	}
+	return nil
 }
 
 // ItemRequest is one checkout line: a variant + desired qty.
@@ -95,6 +168,39 @@ type PreviewResult struct {
 	GrandTotalEstimate float64
 }
 
+// batchFetchVariantsAndProducts resolves every variant referenced by items
+// (and its parent product) in two queries instead of one FindByID pair per
+// item, avoiding N+1 lookups during Preview/Confirm.
+func (u *Usecase) batchFetchVariantsAndProducts(ctx context.Context, items []ItemRequest) (map[uuid.UUID]*entity.ProductVariant, map[uuid.UUID]*entity.Product, error) {
+	variantIDs := make([]uuid.UUID, len(items))
+	for i, it := range items {
+		variantIDs[i] = it.VariantID
+	}
+	variants, err := u.variants.FindByIDs(ctx, variantIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	variantByID := make(map[uuid.UUID]*entity.ProductVariant, len(variants))
+	productIDs := make([]uuid.UUID, 0, len(variants))
+	seenProduct := make(map[uuid.UUID]bool, len(variants))
+	for _, v := range variants {
+		variantByID[v.ID] = v
+		if !seenProduct[v.ProductID] {
+			seenProduct[v.ProductID] = true
+			productIDs = append(productIDs, v.ProductID)
+		}
+	}
+	products, err := u.products.FindByIDs(ctx, productIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	productByID := make(map[uuid.UUID]*entity.Product, len(products))
+	for _, p := range products {
+		productByID[p.ID] = p
+	}
+	return variantByID, productByID, nil
+}
+
 // Preview groups requested items per supplier, validates each (stock,
 // min-order, active, supplier approved), and resolves shipping quotes in
 // parallel per group (FR-5.3).
@@ -116,10 +222,15 @@ func (u *Usecase) Preview(ctx context.Context, userID, addressID uuid.UUID, item
 	buckets := make(map[uuid.UUID]*supplierBucket)
 	var order []uuid.UUID
 
+	variantByID, productByID, err := u.batchFetchVariantsAndProducts(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, it := range items {
-		v, err := u.variants.FindByID(ctx, it.VariantID)
-		if err != nil {
-			return nil, err
+		v, ok := variantByID[it.VariantID]
+		if !ok {
+			return nil, errs.ErrNotFound
 		}
 		if !v.IsActive {
 			return nil, apperr.New("VARIANT_INACTIVE", fmt.Sprintf("Variant %s is inactive", v.Name), 422)
@@ -130,9 +241,9 @@ func (u *Usecase) Preview(ctx context.Context, userID, addressID uuid.UUID, item
 		if v.Stock < it.Qty {
 			return nil, apperr.New("OUT_OF_STOCK", fmt.Sprintf("Variant %s is out of stock", v.Name), 422)
 		}
-		p, err := u.products.FindByID(ctx, v.ProductID)
-		if err != nil {
-			return nil, err
+		p, ok := productByID[v.ProductID]
+		if !ok {
+			return nil, errs.ErrNotFound
 		}
 		if p.Status != entity.ProductStatusActive {
 			return nil, apperr.New("PRODUCT_INACTIVE", fmt.Sprintf("Product %s is not active", p.Name), 422)
@@ -189,11 +300,27 @@ func (u *Usecase) Preview(ctx context.Context, userID, addressID uuid.UUID, item
 	}
 
 	var grandTotal float64
+	quoted := make(map[string][]float64, len(groups))
 	for _, pg := range groups {
 		grandTotal += pg.Subtotal
 		if len(pg.ShippingOptions) > 0 {
 			grandTotal += pg.ShippingOptions[0].Cost
 		}
+		costs := make([]float64, 0, len(pg.ShippingOptions)+1)
+		for _, opt := range pg.ShippingOptions {
+			costs = append(costs, opt.Cost)
+		}
+		if pg.FleetOption != nil {
+			costs = append(costs, pg.FleetOption.Cost)
+		}
+		quoted[pg.SupplierID.String()] = costs
+	}
+	data, err := json.Marshal(quoted)
+	if err != nil {
+		return nil, fmt.Errorf("checkout: marshal shipping quote: %w", err)
+	}
+	if err := u.quotes.Set(ctx, quoteKey(userID, addressID, basketFingerprint(items)), string(data), quoteTTL); err != nil {
+		return nil, fmt.Errorf("checkout: cache shipping quote: %w", err)
 	}
 
 	return &PreviewResult{Groups: groups, GrandTotalEstimate: grandTotal}, nil
@@ -243,11 +370,18 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 		return nil, apperr.New("FORBIDDEN", "Address does not belong to you", 403)
 	}
 
-	variantIDs := make([]uuid.UUID, 0)
+	allItems := make([]ItemRequest, 0)
 	for _, c := range choices {
-		for _, it := range c.Items {
-			variantIDs = append(variantIDs, it.VariantID)
-		}
+		allItems = append(allItems, c.Items...)
+	}
+
+	if err := u.validateShippingCosts(ctx, userID, addressID, allItems, choices); err != nil {
+		return nil, err
+	}
+
+	variantIDs := make([]uuid.UUID, 0, len(allItems))
+	for _, it := range allItems {
+		variantIDs = append(variantIDs, it.VariantID)
 	}
 	sort.Slice(variantIDs, func(i, j int) bool { return variantIDs[i].String() < variantIDs[j].String() })
 
@@ -283,6 +417,11 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 		PostalCode: addr.PostalCode, AddressDetail: addr.AddressDetail,
 	}
 
+	variantByID, productByID, err := u.batchFetchVariantsAndProducts(ctx, allItems)
+	if err != nil {
+		return nil, err
+	}
+
 	var grandTotal float64
 	confirmOrders := make([]repository.ConfirmOrder, 0, len(choices))
 	for _, c := range choices {
@@ -299,13 +438,13 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 		items := make([]*entity.OrderItem, 0, len(c.Items))
 		reservations := make([]*entity.StockReservation, 0, len(c.Items))
 		for _, it := range c.Items {
-			v, err := u.variants.FindByID(ctx, it.VariantID)
-			if err != nil {
-				return nil, err
+			v, ok := variantByID[it.VariantID]
+			if !ok {
+				return nil, errs.ErrNotFound
 			}
-			p, err := u.products.FindByID(ctx, v.ProductID)
-			if err != nil {
-				return nil, err
+			p, ok := productByID[v.ProductID]
+			if !ok {
+				return nil, errs.ErrNotFound
 			}
 			subtotal += v.Price * float64(it.Qty)
 
@@ -366,10 +505,17 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 	invoiceID, invoiceURL, err := u.paymentGW.CreateInvoice(ctx, groupID, grandTotal, "Order "+groupNumber)
 	if err != nil {
 		_ = u.checkoutGroups.UpdateStatus(ctx, groupID, entity.CheckoutGroupStatusPaymentFailed)
+		adjustments := make([]repository.ReservationAdjustment, 0)
 		for _, co := range confirmOrders {
 			for _, r := range co.Reservations {
-				_ = u.reservations.UpdateStatus(ctx, r.ID, entity.StockReservationStatusReleased)
+				adjustments = append(adjustments, repository.ReservationAdjustment{
+					ReservationID: r.ID, VariantID: r.VariantID,
+					Status: entity.StockReservationStatusReleased,
+				})
 			}
+		}
+		if aerr := u.reservations.ApplyAdjustments(ctx, adjustments); aerr != nil {
+			return nil, fmt.Errorf("checkout: release reservations after invoice failure: %w", aerr)
 		}
 		return nil, apperr.New("PAYMENT_UNAVAILABLE", "Failed to create payment invoice, please try again", 502)
 	}

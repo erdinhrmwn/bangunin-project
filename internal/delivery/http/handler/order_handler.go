@@ -8,7 +8,6 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
@@ -49,12 +48,9 @@ func (h *OrderHandler) GetMine(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	o, err := h.order.Get(c.Context(), id)
+	o, err := h.order.GetForUser(c.Context(), id, userID)
 	if err != nil {
 		return errJSON(c, err)
-	}
-	if o.UserID != userID {
-		return errJSON(c, apperr.New("FORBIDDEN", "Order does not belong to you", 403))
 	}
 	return c.JSON(response.Success("OK", o))
 }
@@ -68,6 +64,8 @@ func (h *OrderHandler) Cancel(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	// Body is optional (reason is not persisted) — a missing/empty body is fine, so
+	// the bind error is intentionally ignored rather than rejecting the request.
 	var req dto.CancelOrderRequest
 	_ = c.Bind().Body(&req)
 	if err := h.order.Cancel(c.Context(), id, userID, entity.ActorTypeUser); err != nil {
@@ -94,7 +92,11 @@ func (h *OrderHandler) GetSupplier(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	o, err := h.order.Get(c.Context(), id)
+	supplierID, err := resolveSupplierID(c, h.suppliers)
+	if err != nil {
+		return errJSON(c, err)
+	}
+	o, err := h.order.GetForSupplier(c.Context(), id, supplierID)
 	if err != nil {
 		return errJSON(c, err)
 	}
@@ -154,15 +156,24 @@ func (h *OrderHandler) Deliver(c fiber.Ctx) error {
 }
 
 func (h *OrderHandler) ListAdmin(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
-	if err == nil {
-		o, err := h.order.Get(c.Context(), id)
-		if err != nil {
-			return errJSON(c, err)
-		}
-		return c.JSON(response.Success("OK", o))
+	p := pagination.Parse(c.Query("page"), c.Query("per_page"))
+	orders, total, err := h.order.ListAll(c.Context(), p.Page, p.PerPage)
+	if err != nil {
+		return errJSON(c, err)
 	}
-	return badRequest(c)
+	return c.JSON(response.SuccessPaginated("OK", orders, response.Meta{Page: p.Page, PerPage: p.PerPage, Total: total}))
+}
+
+func (h *OrderHandler) GetAdmin(c fiber.Ctx) error {
+	id, err := parseUUIDParam(c, "id")
+	if err != nil {
+		return err
+	}
+	o, err := h.order.Get(c.Context(), id)
+	if err != nil {
+		return errJSON(c, err)
+	}
+	return c.JSON(response.Success("OK", o))
 }
 
 func (h *OrderHandler) ForceStatus(c fiber.Ctx) error {

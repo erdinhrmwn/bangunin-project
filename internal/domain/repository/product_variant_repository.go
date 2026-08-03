@@ -13,6 +13,9 @@ type ProductVariantRepository interface {
 	Update(ctx context.Context, v *entity.ProductVariant) error
 	FindByID(ctx context.Context, id uuid.UUID) (*entity.ProductVariant, error)
 	FindByIDAndSupplier(ctx context.Context, id, supplierID uuid.UUID) (*entity.ProductVariant, error)
+	// FindByIDs batches lookup for N variants in one query; result order is
+	// not guaranteed to match ids, and missing ids are silently omitted.
+	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.ProductVariant, error)
 	ListByProductID(ctx context.Context, productID uuid.UUID) ([]*entity.ProductVariant, error)
 	CountActiveByProductID(ctx context.Context, productID uuid.UUID) (int, error)
 	// ListBelowThreshold returns all active variants with stock < threshold,

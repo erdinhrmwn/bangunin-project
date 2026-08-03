@@ -5,14 +5,17 @@ package order
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
+	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/service"
+	"erdinhrmwn/bangunin/internal/pkg/notify"
 	"erdinhrmwn/bangunin/pkg/apperr"
 )
 
@@ -27,7 +30,6 @@ type Usecase struct {
 	checkouts    repository.CheckoutGroupRepository
 	payments     repository.PaymentRepository
 	reservations repository.StockReservationRepository
-	variants     repository.ProductVariantRepository
 	suppliers    repository.SupplierRepository
 	users        repository.UserRepository
 	notify       repository.NotificationRepository
@@ -44,7 +46,6 @@ func New(
 	checkouts repository.CheckoutGroupRepository,
 	payments repository.PaymentRepository,
 	reservations repository.StockReservationRepository,
-	variants repository.ProductVariantRepository,
 	suppliers repository.SupplierRepository,
 	users repository.UserRepository,
 	notify repository.NotificationRepository,
@@ -55,7 +56,7 @@ func New(
 ) *Usecase {
 	return &Usecase{
 		orders: orders, histories: histories, shipments: shipments, checkouts: checkouts,
-		payments: payments, reservations: reservations, variants: variants, suppliers: suppliers,
+		payments: payments, reservations: reservations, suppliers: suppliers,
 		users: users, notify: notify, audit: audit, email: email,
 		ledger: ledger, balances: balances,
 	}
@@ -101,7 +102,10 @@ func (u *Usecase) transition(ctx context.Context, o *entity.Order, toStatus, act
 		return apperr.New("INVALID_STATUS_TRANSITION", fmt.Sprintf("Actor %s cannot move order to %s", actorType, toStatus), 409)
 	}
 
-	if err := u.orders.UpdateStatus(ctx, o.ID, toStatus); err != nil {
+	if err := u.orders.UpdateStatus(ctx, o.ID, o.Status, toStatus); err != nil {
+		if errors.Is(err, errs.ErrConflict) {
+			return apperr.New("CONFLICT", "Order status changed concurrently, please retry", 409)
+		}
 		return err
 	}
 	histID, err := uuid.NewV7()
@@ -122,6 +126,30 @@ func (u *Usecase) Get(ctx context.Context, id uuid.UUID) (*entity.Order, error) 
 	return u.orders.FindByID(ctx, id)
 }
 
+// GetForUser enforces buyer ownership (FR-5.5), mirroring payout usecase's per-actor checks.
+func (u *Usecase) GetForUser(ctx context.Context, id, userID uuid.UUID) (*entity.Order, error) {
+	o, err := u.orders.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if o.UserID != userID {
+		return nil, apperr.New("FORBIDDEN", "Order does not belong to you", 403)
+	}
+	return o, nil
+}
+
+// GetForSupplier enforces supplier ownership (FR-5.5), mirroring payout usecase's per-actor checks.
+func (u *Usecase) GetForSupplier(ctx context.Context, id, supplierID uuid.UUID) (*entity.Order, error) {
+	o, err := u.orders.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if o.SupplierID != supplierID {
+		return nil, apperr.New("FORBIDDEN", "Order does not belong to you", 403)
+	}
+	return o, nil
+}
+
 func (u *Usecase) History(ctx context.Context, orderID uuid.UUID) ([]*entity.OrderStatusHistory, error) {
 	return u.histories.ListByOrderID(ctx, orderID)
 }
@@ -132,6 +160,10 @@ func (u *Usecase) Shipment(ctx context.Context, orderID uuid.UUID) (*entity.Ship
 
 func (u *Usecase) ListByUser(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*entity.Order, int, error) {
 	return u.orders.ListByUserID(ctx, userID, page, perPage)
+}
+
+func (u *Usecase) ListAll(ctx context.Context, page, perPage int) ([]*entity.Order, int, error) {
+	return u.orders.ListAll(ctx, page, perPage)
 }
 
 func (u *Usecase) ListBySupplier(ctx context.Context, supplierID uuid.UUID, page, perPage int) ([]*entity.Order, int, error) {
@@ -255,7 +287,10 @@ func (u *Usecase) ForceStatus(ctx context.Context, orderID, adminID uuid.UUID, t
 		return err
 	}
 	before := o.Status
-	if err := u.orders.UpdateStatus(ctx, orderID, toStatus); err != nil {
+	if err := u.orders.UpdateStatus(ctx, orderID, before, toStatus); err != nil {
+		if errors.Is(err, errs.ErrConflict) {
+			return apperr.New("CONFLICT", "Order status changed concurrently, please retry", 409)
+		}
 		return err
 	}
 	histID, err := uuid.NewV7()
@@ -285,23 +320,24 @@ func (u *Usecase) restoreStock(ctx context.Context, orderID uuid.UUID, wasPaid b
 	if err != nil {
 		return err
 	}
+	var adjustments []repository.ReservationAdjustment
 	for _, r := range reservations {
 		if r.Status != entity.StockReservationStatusActive && r.Status != entity.StockReservationStatusConverted {
 			continue
 		}
+		adj := repository.ReservationAdjustment{
+			ReservationID: r.ID, VariantID: r.VariantID, Status: entity.StockReservationStatusReleased,
+		}
 		if wasPaid && r.Status == entity.StockReservationStatusConverted {
-			if _, err := u.variants.AdjustStockWithMovement(ctx, r.VariantID, r.Qty, &entity.StockMovement{
+			adj.Delta = r.Qty
+			adj.Movement = &entity.StockMovement{
 				ID: mustNewV7(), VariantID: r.VariantID, Type: entity.MovementTypeAdjustment,
 				Qty: r.Qty, RefType: entity.RefTypeOrder, RefID: &orderID, Note: "Order cancelled, stock restored",
-			}); err != nil {
-				return err
 			}
 		}
-		if err := u.reservations.UpdateStatus(ctx, r.ID, entity.StockReservationStatusReleased); err != nil {
-			return err
-		}
+		adjustments = append(adjustments, adj)
 	}
-	return nil
+	return u.reservations.ApplyAdjustments(ctx, adjustments)
 }
 
 // HandlePaidCallback applies FR-5.6, idempotent on the invoice already being
@@ -352,21 +388,21 @@ func (u *Usecase) convertReservations(ctx context.Context, orderID uuid.UUID) er
 	if err != nil {
 		return err
 	}
+	var adjustments []repository.ReservationAdjustment
 	for _, r := range reservations {
 		if r.Status != entity.StockReservationStatusActive {
 			continue
 		}
-		if _, err := u.variants.AdjustStockWithMovement(ctx, r.VariantID, -r.Qty, &entity.StockMovement{
-			ID: mustNewV7(), VariantID: r.VariantID, Type: entity.MovementTypeReserveConvert,
-			Qty: -r.Qty, RefType: entity.RefTypeOrder, RefID: &orderID, Note: "Reservation converted on payment",
-		}); err != nil {
-			return err
-		}
-		if err := u.reservations.UpdateStatus(ctx, r.ID, entity.StockReservationStatusConverted); err != nil {
-			return err
-		}
+		adjustments = append(adjustments, repository.ReservationAdjustment{
+			ReservationID: r.ID, VariantID: r.VariantID, Delta: -r.Qty,
+			Status: entity.StockReservationStatusConverted,
+			Movement: &entity.StockMovement{
+				ID: mustNewV7(), VariantID: r.VariantID, Type: entity.MovementTypeReserveConvert,
+				Qty: -r.Qty, RefType: entity.RefTypeOrder, RefID: &orderID, Note: "Reservation converted on payment",
+			},
+		})
 	}
-	return nil
+	return u.reservations.ApplyAdjustments(ctx, adjustments)
 }
 
 // HandleExpire runs the order:expire job (FR-5.7): releases reservations for
@@ -481,16 +517,7 @@ func (u *Usecase) notifySupplier(ctx context.Context, o *entity.Order, title, bo
 }
 
 func (u *Usecase) notifyUser(ctx context.Context, userID uuid.UUID, title, body string) {
-	notifID, err := uuid.NewV7()
-	if err != nil {
-		return
-	}
-	_ = u.notify.Create(ctx, &entity.Notification{
-		ID: notifID, UserID: userID, Type: entity.NotificationTypeOrderUpdate, Title: title, Body: body,
-	})
-	if usr, err := u.users.FindByID(ctx, userID); err == nil {
-		_ = u.email.EnqueueEmail(usr.Email, title, body)
-	}
+	_ = notify.SendWithEmail(ctx, u.notify, u.users, u.email, userID, entity.NotificationTypeOrderUpdate, title, body)
 }
 
 func mustNewV7() uuid.UUID {

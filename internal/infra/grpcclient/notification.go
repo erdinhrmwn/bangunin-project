@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	notificationv1 "erdinhrmwn/bangunin/proto/notification/v1"
 )
@@ -16,8 +15,9 @@ type NotificationClient struct {
 	client notificationv1.NotificationServiceClient
 }
 
-func NewNotificationClient(addr string) (*NotificationClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// NewNotificationClient dials addr, using TLS unless env is "development".
+func NewNotificationClient(addr, env string) (*NotificationClient, error) {
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(transportCredentials(env)))
 	if err != nil {
 		return nil, fmt.Errorf("grpcclient: dial notification-service: %w", err)
 	}

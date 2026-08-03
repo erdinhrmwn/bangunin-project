@@ -10,6 +10,7 @@ import (
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/errs"
+	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/repository/mocks"
 	"erdinhrmwn/bangunin/pkg/apperr"
 
@@ -24,7 +25,6 @@ type deps struct {
 	checkouts    *mocks.MockCheckoutGroupRepository
 	payments     *mocks.MockPaymentRepository
 	reservations *mocks.MockStockReservationRepository
-	variants     *mocks.MockProductVariantRepository
 	suppliers    *mocks.MockSupplierRepository
 	users        *mocks.MockUserRepository
 	notify       *mocks.MockNotificationRepository
@@ -43,7 +43,6 @@ func newUsecase(t *testing.T) (*orderusecase.Usecase, *deps) {
 		checkouts:    mocks.NewMockCheckoutGroupRepository(t),
 		payments:     mocks.NewMockPaymentRepository(t),
 		reservations: mocks.NewMockStockReservationRepository(t),
-		variants:     mocks.NewMockProductVariantRepository(t),
 		suppliers:    mocks.NewMockSupplierRepository(t),
 		users:        mocks.NewMockUserRepository(t),
 		notify:       mocks.NewMockNotificationRepository(t),
@@ -54,7 +53,7 @@ func newUsecase(t *testing.T) (*orderusecase.Usecase, *deps) {
 	}
 	uc := orderusecase.New(
 		d.orders, d.histories, d.shipments, d.checkouts, d.payments, d.reservations,
-		d.variants, d.suppliers, d.users, d.notify, d.audit, d.email,
+		d.suppliers, d.users, d.notify, d.audit, d.email,
 		d.ledger, d.balances,
 	)
 	return uc, d
@@ -156,7 +155,7 @@ func TestDeliver_Success(t *testing.T) {
 	uc, d := newUsecase(t)
 	orderID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, SupplierID: supplierID, Status: entity.OrderStatusShipped}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusDelivered).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusShipped, entity.OrderStatusDelivered).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.ToStatus == entity.OrderStatusDelivered && h.ActorType == entity.ActorTypeSupplier
 	})).Return(nil)
@@ -180,7 +179,7 @@ func TestProcess_Success(t *testing.T) {
 	uc, d := newUsecase(t)
 	orderID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, SupplierID: supplierID, Status: entity.OrderStatusPaid}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusProcessed).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusPaid, entity.OrderStatusProcessed).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.ToStatus == entity.OrderStatusProcessed && h.ActorType == entity.ActorTypeSupplier
 	})).Return(nil)
@@ -227,7 +226,7 @@ func TestShip_Courier_Success(t *testing.T) {
 	uc, d := newUsecase(t)
 	orderID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, SupplierID: supplierID, Status: entity.OrderStatusProcessed}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusShipped).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusProcessed, entity.OrderStatusShipped).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.ToStatus == entity.OrderStatusShipped && h.ActorType == entity.ActorTypeSupplier
 	})).Return(nil)
@@ -244,7 +243,7 @@ func TestForceStatus_BypassesStateMachine(t *testing.T) {
 	uc, d := newUsecase(t)
 	orderID, adminID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, Status: entity.OrderStatusPendingPayment}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusShipped).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusPendingPayment, entity.OrderStatusShipped).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.FromStatus == entity.OrderStatusPendingPayment && h.ToStatus == entity.OrderStatusShipped && h.ActorType == entity.ActorTypeAdmin
 	})).Return(nil)
@@ -261,17 +260,22 @@ func TestCancel_PaidOrder_RestoresStockAndRecordsMockRefund(t *testing.T) {
 	uc, d := newUsecase(t)
 	orderID, userID, variantID, resID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, UserID: userID, Status: entity.OrderStatusPaid}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusCancelled).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusPaid, entity.OrderStatusCancelled).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.Note == "Order cancelled, refund processed (mock)"
 	})).Return(nil)
 	d.reservations.EXPECT().ListByOrderID(mock.Anything, orderID).Return([]*entity.StockReservation{
 		{ID: resID, OrderID: orderID, VariantID: variantID, Qty: 3, Status: entity.StockReservationStatusConverted},
 	}, nil)
-	d.variants.EXPECT().AdjustStockWithMovement(mock.Anything, variantID, 3, mock.MatchedBy(func(m *entity.StockMovement) bool {
-		return m.Type == entity.MovementTypeAdjustment && m.Qty == 3
-	})).Return(10, nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, resID, entity.StockReservationStatusReleased).Return(nil)
+	d.reservations.EXPECT().ApplyAdjustments(mock.Anything, mock.MatchedBy(func(adjs []repository.ReservationAdjustment) bool {
+		if len(adjs) != 1 {
+			return false
+		}
+		a := adjs[0]
+		return a.ReservationID == resID && a.VariantID == variantID && a.Delta == 3 &&
+			a.Status == entity.StockReservationStatusReleased &&
+			a.Movement != nil && a.Movement.Type == entity.MovementTypeAdjustment && a.Movement.Qty == 3
+	})).Return(nil)
 
 	err := uc.Cancel(context.Background(), orderID, userID, entity.ActorTypeUser)
 
@@ -313,17 +317,22 @@ func TestHandlePaidCallback_MarksPaidConvertsReservationsAndNotifiesBoth(t *test
 	d.orders.EXPECT().ListByCheckoutGroupID(mock.Anything, groupID).Return([]*entity.Order{
 		{ID: orderID, Status: entity.OrderStatusPendingPayment, OrderNumber: "ORD-1"},
 	}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusPaid).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusPendingPayment, entity.OrderStatusPaid).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.ToStatus == entity.OrderStatusPaid && h.ActorType == entity.ActorTypeSystem
 	})).Return(nil)
 	d.reservations.EXPECT().ListByOrderID(mock.Anything, orderID).Return([]*entity.StockReservation{
 		{ID: resID, OrderID: orderID, VariantID: variantID, Qty: 2, Status: entity.StockReservationStatusActive},
 	}, nil)
-	d.variants.EXPECT().AdjustStockWithMovement(mock.Anything, variantID, -2, mock.MatchedBy(func(m *entity.StockMovement) bool {
-		return m.Type == entity.MovementTypeReserveConvert
-	})).Return(8, nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, resID, entity.StockReservationStatusConverted).Return(nil)
+	d.reservations.EXPECT().ApplyAdjustments(mock.Anything, mock.MatchedBy(func(adjs []repository.ReservationAdjustment) bool {
+		if len(adjs) != 1 {
+			return false
+		}
+		a := adjs[0]
+		return a.ReservationID == resID && a.VariantID == variantID && a.Delta == -2 &&
+			a.Status == entity.StockReservationStatusConverted &&
+			a.Movement != nil && a.Movement.Type == entity.MovementTypeReserveConvert && a.Movement.Qty == -2
+	})).Return(nil)
 
 	err := uc.HandlePaidCallback(context.Background(), "inv-1")
 
@@ -340,14 +349,23 @@ func TestHandleExpire_ReleasesReservationAndExpiresOrderOnce(t *testing.T) {
 		{ID: res2, OrderID: orderID, VariantID: variantID, Status: entity.StockReservationStatusActive},
 	}, nil)
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(&entity.Order{ID: orderID, Status: entity.OrderStatusPendingPayment, OrderNumber: "ORD-1"}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusExpired).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusPendingPayment, entity.OrderStatusExpired).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
 	d.reservations.EXPECT().ListByOrderID(mock.Anything, orderID).Return([]*entity.StockReservation{
 		{ID: res1, OrderID: orderID, VariantID: variantID, Status: entity.StockReservationStatusActive},
 		{ID: res2, OrderID: orderID, VariantID: variantID, Status: entity.StockReservationStatusActive},
 	}, nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, res1, entity.StockReservationStatusReleased).Return(nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, res2, entity.StockReservationStatusReleased).Return(nil)
+	d.reservations.EXPECT().ApplyAdjustments(mock.Anything, mock.MatchedBy(func(adjs []repository.ReservationAdjustment) bool {
+		if len(adjs) != 2 {
+			return false
+		}
+		for _, a := range adjs {
+			if a.Status != entity.StockReservationStatusReleased || a.Movement != nil || a.Delta != 0 {
+				return false
+			}
+		}
+		return adjs[0].ReservationID == res1 && adjs[1].ReservationID == res2
+	})).Return(nil)
 
 	err := uc.HandleExpire(context.Background())
 
@@ -361,7 +379,7 @@ func TestHandleAutocomplete_CompletesDeliveredOrders(t *testing.T) {
 	d.orders.EXPECT().ListDeliveredBefore(mock.Anything, mock.AnythingOfType("time.Time")).Return([]*entity.Order{
 		{ID: orderID, Status: entity.OrderStatusDelivered},
 	}, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusCompleted).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusDelivered, entity.OrderStatusCompleted).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.MatchedBy(func(h *entity.OrderStatusHistory) bool {
 		return h.ToStatus == entity.OrderStatusCompleted && h.ActorType == entity.ActorTypeSystem
 	})).Return(nil)
@@ -380,7 +398,7 @@ func TestComplete_SettlesLedgerCourierShipment(t *testing.T) {
 		Subtotal: 1_000_000, ShippingCost: 50_000, CommissionAmount: 40_000,
 	}
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(o, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusCompleted).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusDelivered, entity.OrderStatusCompleted).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
 	d.shipments.EXPECT().FindByOrderID(mock.Anything, orderID).Return(&entity.Shipment{Method: entity.ShipmentMethodCourier}, nil)
 
@@ -408,7 +426,7 @@ func TestComplete_SettlesLedgerFleetShipmentIncludesShippingCost(t *testing.T) {
 		Subtotal: 1_000_000, ShippingCost: 50_000, CommissionAmount: 40_000,
 	}
 	d.orders.EXPECT().FindByID(mock.Anything, orderID).Return(o, nil)
-	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusCompleted).Return(nil)
+	d.orders.EXPECT().UpdateStatus(mock.Anything, orderID, entity.OrderStatusDelivered, entity.OrderStatusCompleted).Return(nil)
 	d.histories.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
 	d.shipments.EXPECT().FindByOrderID(mock.Anything, orderID).Return(&entity.Shipment{Method: entity.ShipmentMethodSupplierFleet}, nil)
 

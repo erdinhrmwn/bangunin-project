@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,23 +21,33 @@ import (
 func (c *Container) Run() error {
 	app := fiber.New()
 
-	app.Get("/metrics", middleware.MetricsHandler())
-	middleware.StartQueueSizeExporter(asynq.RedisClientOpt{Addr: c.Config.Redis.Addr, Password: c.Config.Redis.Password, DB: c.Config.Redis.DB}, 15*time.Second)
+	exporterCtx, cancelExporter := context.WithCancel(context.Background())
+	stopExporter := middleware.StartQueueSizeExporter(exporterCtx, asynq.RedisClientOpt{Addr: c.config.Redis.Addr, Password: c.config.Redis.Password, DB: c.config.Redis.DB}, 15*time.Second)
+	defer stopExporter()
+	defer cancelExporter()
 
-	app.Use(middleware.Recover(c.Logger))
+	app.Use(middleware.Recover(c.logger))
+	app.Get("/metrics", middleware.MetricsHandler())
 	app.Use(middleware.RequestID())
-	app.Use(middleware.RequestLog(c.Logger))
+	app.Use(middleware.RequestLog(c.logger))
 	app.Use(middleware.Metrics)
 	app.Use(helmet.New())
 	app.Use(middleware.BodyLimit)
 	app.Use(middleware.CORS(nil))
-	app.Use(middleware.RateLimit(c.Redis))
+	app.Use(middleware.RateLimit(c.redis))
 
-	route.Register(app, c.Health, c.Auth, c.User, c.Supplier, c.Media, c.AdminSupplier, c.Notification, c.Category, c.Product, c.Inventory, c.Catalog, c.Internal, c.Address, c.Cart, c.Checkout, c.Order, c.Shipment, c.Payout, c.Review, c.Wishlist, c.Banner, c.Report, c.AdminReport, c.JWT, c.AuthRepo, c.SupplierRepo, c.Redis)
+	route.Register(app, route.Deps{
+		Health: c.health, Auth: c.auth, User: c.user, Supplier: c.supplier, Media: c.media,
+		AdminSupplier: c.adminSupplier, Notification: c.notification, Category: c.category, Product: c.product, Inventory: c.inventory,
+		Catalog: c.catalog, Internal: c.internal, Address: c.address, Cart: c.cart, Checkout: c.checkout,
+		Order: c.order, Shipment: c.shipment, Payout: c.payout, Review: c.review, Wishlist: c.wishlist,
+		Banner: c.banner, Report: c.report, AdminReport: c.adminReport,
+		JWT: c.jwt, AuthRepo: c.authRepo, Suppliers: c.supplierRepo, Redis: c.redis,
+	})
 
 	errCh := make(chan error, 1)
 	go func() {
-		addr := fmt.Sprintf(":%d", c.Config.App.Port)
+		addr := fmt.Sprintf(":%d", c.config.App.Port)
 		if err := app.Listen(addr); err != nil {
 			errCh <- err
 		}
@@ -49,7 +60,7 @@ func (c *Container) Run() error {
 	case err := <-errCh:
 		return err
 	case <-sigCh:
-		c.Logger.Info().Msg("shutting down")
+		c.logger.Info().Msg("shutting down")
 	}
 
 	return app.ShutdownWithTimeout(10 * time.Second)

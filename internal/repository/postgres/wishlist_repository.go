@@ -55,13 +55,24 @@ func (r *WishlistRepository) ExistsByUserAndProduct(ctx context.Context, userID,
 	return exists, nil
 }
 
+// wishlistVisibleJoin restricts to products/suppliers still visible on the
+// storefront, matching the product search filter (product_repository.go
+// Search: "p.status = 'active' AND s.status = 'approved'") so a suspended
+// supplier or banned product doesn't linger in a user's wishlist listing.
+const wishlistVisibleJoin = `
+	FROM wishlists w
+	JOIN products p ON p.id = w.product_id
+	JOIN suppliers s ON s.id = p.supplier_id
+	WHERE w.user_id = $1 AND p.status = 'active' AND s.status = 'approved'
+`
+
 func (r *WishlistRepository) ListByUser(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*entity.Wishlist, int, error) {
 	var total int
-	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM wishlists WHERE user_id = $1`, userID).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT count(*) `+wishlistVisibleJoin, userID).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("postgres: count wishlists: %w", err)
 	}
 
-	const q = `SELECT id, user_id, product_id, created_at FROM wishlists WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+	q := `SELECT w.id, w.user_id, w.product_id, w.created_at ` + wishlistVisibleJoin + ` ORDER BY w.created_at DESC LIMIT $2 OFFSET $3`
 	rows, err := r.db.Query(ctx, q, userID, perPage, (page-1)*perPage)
 	if err != nil {
 		return nil, 0, fmt.Errorf("postgres: list wishlists: %w", err)

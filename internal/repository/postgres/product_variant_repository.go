@@ -79,6 +79,28 @@ func (r *ProductVariantRepository) FindByIDAndSupplier(ctx context.Context, id, 
 	return v, nil
 }
 
+func (r *ProductVariantRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.ProductVariant, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	const q = selectVariantCols + `FROM product_variants WHERE id = ANY($1)`
+	rows, err := r.db.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: find product variants: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*entity.ProductVariant
+	for rows.Next() {
+		v, err := scanVariant(rows)
+		if err != nil {
+			return nil, fmt.Errorf("postgres: scan product variant: %w", err)
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 func (r *ProductVariantRepository) ListByProductID(ctx context.Context, productID uuid.UUID) ([]*entity.ProductVariant, error) {
 	const q = selectVariantCols + `FROM product_variants WHERE product_id = $1 ORDER BY created_at`
 	rows, err := r.db.Query(ctx, q, productID)

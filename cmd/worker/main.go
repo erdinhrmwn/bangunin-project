@@ -4,10 +4,10 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +15,8 @@ import (
 
 	"erdinhrmwn/bangunin/config"
 	"erdinhrmwn/bangunin/internal/domain/entity"
+	"erdinhrmwn/bangunin/internal/domain/repository"
+	"erdinhrmwn/bangunin/internal/domain/service"
 	"erdinhrmwn/bangunin/internal/infra/database"
 	"erdinhrmwn/bangunin/internal/infra/grpcclient"
 	"erdinhrmwn/bangunin/internal/infra/queue"
@@ -29,6 +31,32 @@ import (
 	reportusecase "erdinhrmwn/bangunin/internal/usecase/report"
 )
 
+// deliverReport uploads a generated report CSV, presigns a 24h download
+// link, records an in-app notification, and emails the recipient — the
+// tail shared by report:generate and report:generate-admin.
+func deliverReport(ctx context.Context, mediaStorage *storage.MinIOStorage, notificationRepo repository.NotificationRepository, notifier service.NotificationService, key string, data []byte, recipient *entity.User, reportKind string) error {
+	if _, err := mediaStorage.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), "text/csv"); err != nil {
+		return fmt.Errorf("upload %s: %w", key, err)
+	}
+	downloadURL, err := mediaStorage.PresignedURL(ctx, key, 24*time.Hour)
+	if err != nil {
+		return fmt.Errorf("presign %s: %w", key, err)
+	}
+
+	title := reportKind + " report ready"
+	body := fmt.Sprintf("Your %s report is ready. Download it here (valid 24h): %s", strings.ToLower(reportKind), downloadURL)
+	notifID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate notification id: %w", err)
+	}
+	if err := notificationRepo.Create(ctx, &entity.Notification{
+		ID: notifID, UserID: recipient.ID, Type: entity.NotificationTypeSystem, Title: title, Body: body,
+	}); err != nil {
+		return fmt.Errorf("create notification: %w", err)
+	}
+	return notifier.SendEmail(ctx, recipient.Email, title, body)
+}
+
 func main() {
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
@@ -40,12 +68,23 @@ func main() {
 
 	srv := asynq.NewServer(redisOpt, asynq.Config{})
 	mux := asynq.NewServeMux()
+	mux.Use(func(next asynq.Handler) asynq.Handler {
+		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Str("task_type", t.Type()).Msg("recovered panic in task handler")
+					err = fmt.Errorf("task %s: panic: %v", t.Type(), r)
+				}
+			}()
+			return next.ProcessTask(ctx, t)
+		})
+	})
 	mux.HandleFunc(queue.TaskHeartbeat, func(ctx context.Context, t *asynq.Task) error {
 		log.Info().Msg("heartbeat")
 		return nil
 	})
 
-	notifier, err := grpcclient.NewNotificationClient(cfg.Notification.GRPCAddr)
+	notifier, err := grpcclient.NewNotificationClient(cfg.Notification.GRPCAddr, cfg.App.Env)
 	if err != nil {
 		fatal(err)
 	}
@@ -114,7 +153,6 @@ func main() {
 		postgresrepo.NewCheckoutGroupRepository(db),
 		postgresrepo.NewPaymentRepository(db),
 		postgresrepo.NewStockReservationRepository(db),
-		postgresrepo.NewProductVariantRepository(db),
 		postgresrepo.NewSupplierRepository(db),
 		postgresrepo.NewUserRepository(db),
 		postgresrepo.NewNotificationRepository(db),
@@ -143,40 +181,15 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("report:generate: get summary: %w", err)
 		}
-
-		var buf bytes.Buffer
-		w := csv.NewWriter(&buf)
-		_ = w.Write([]string{"GMV", "Orders", "AOV"})
-		_ = w.Write([]string{fmt.Sprintf("%.2f", summary.GMV), fmt.Sprintf("%d", summary.OrdersCount), fmt.Sprintf("%.2f", summary.AOV)})
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Product", "Qty", "Revenue"})
-		for _, tp := range summary.TopProducts {
-			_ = w.Write([]string{tp.ProductName, fmt.Sprintf("%d", tp.Qty), fmt.Sprintf("%.2f", tp.Revenue)})
+		data, err := summary.BuildCSV()
+		if err != nil {
+			return fmt.Errorf("report:generate: %w", err)
 		}
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Day", "GMV", "Orders"})
-		for _, d := range summary.SalesPerDay {
-			_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
-		}
-		w.Flush()
-		if err := w.Error(); err != nil {
-			return fmt.Errorf("report:generate: write csv: %w", err)
-		}
-		data := buf.Bytes()
 
 		id, err := uuid.NewV7()
 		if err != nil {
 			return fmt.Errorf("report:generate: generate id: %w", err)
 		}
-		key := fmt.Sprintf("reports/%s/%s.csv", p.SupplierID, id)
-		if _, err := mediaStorage.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), "text/csv"); err != nil {
-			return fmt.Errorf("report:generate: upload %s: %w", key, err)
-		}
-		downloadURL, err := mediaStorage.PresignedURL(ctx, key, 24*time.Hour)
-		if err != nil {
-			return fmt.Errorf("report:generate: presign %s: %w", key, err)
-		}
-
 		s, err := supplierRepo.FindByID(ctx, p.SupplierID)
 		if err != nil {
 			return fmt.Errorf("report:generate: find supplier: %w", err)
@@ -185,19 +198,11 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("report:generate: find user: %w", err)
 		}
-
-		title := "Sales report ready"
-		body := fmt.Sprintf("Your sales report is ready. Download it here (valid 24h): %s", downloadURL)
-		notifID, err := uuid.NewV7()
-		if err != nil {
-			return fmt.Errorf("report:generate: generate notification id: %w", err)
+		key := fmt.Sprintf("reports/%s/%s.csv", p.SupplierID, id)
+		if err := deliverReport(ctx, mediaStorage, notificationRepo, notifier, key, data, usr, "Sales"); err != nil {
+			return fmt.Errorf("report:generate: %w", err)
 		}
-		if err := notificationRepo.Create(ctx, &entity.Notification{
-			ID: notifID, UserID: usr.ID, Type: entity.NotificationTypeSystem, Title: title, Body: body,
-		}); err != nil {
-			return fmt.Errorf("report:generate: create notification: %w", err)
-		}
-		return notifier.SendEmail(ctx, usr.Email, title, body)
+		return nil
 	})
 
 	adminReportUC := reportusecase.NewAdmin(
@@ -216,60 +221,24 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("report:generate-admin: get summary: %w", err)
 		}
-
-		var buf bytes.Buffer
-		w := csv.NewWriter(&buf)
-		_ = w.Write([]string{"GMV", "Commission", "ActiveSuppliers", "NewUsers"})
-		_ = w.Write([]string{
-			fmt.Sprintf("%.2f", summary.GMV), fmt.Sprintf("%.2f", summary.Commission),
-			fmt.Sprintf("%d", summary.ActiveSuppliers), fmt.Sprintf("%d", summary.NewUsers),
-		})
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Status", "Count"})
-		for status, count := range summary.OrdersByStatus {
-			_ = w.Write([]string{status, fmt.Sprintf("%d", count)})
+		data, err := summary.BuildCSV()
+		if err != nil {
+			return fmt.Errorf("report:generate-admin: %w", err)
 		}
-		_ = w.Write([]string{})
-		_ = w.Write([]string{"Day", "GMV", "Orders"})
-		for _, d := range summary.SalesPerDay {
-			_ = w.Write([]string{d.Day.Format("2006-01-02"), fmt.Sprintf("%.2f", d.GMV), fmt.Sprintf("%d", d.Orders)})
-		}
-		w.Flush()
-		if err := w.Error(); err != nil {
-			return fmt.Errorf("report:generate-admin: write csv: %w", err)
-		}
-		data := buf.Bytes()
 
 		id, err := uuid.NewV7()
 		if err != nil {
 			return fmt.Errorf("report:generate-admin: generate id: %w", err)
 		}
-		key := fmt.Sprintf("reports/admin/%s.csv", id)
-		if _, err := mediaStorage.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), "text/csv"); err != nil {
-			return fmt.Errorf("report:generate-admin: upload %s: %w", key, err)
-		}
-		downloadURL, err := mediaStorage.PresignedURL(ctx, key, 24*time.Hour)
-		if err != nil {
-			return fmt.Errorf("report:generate-admin: presign %s: %w", key, err)
-		}
-
 		usr, err := userRepo.FindByID(ctx, p.AdminID)
 		if err != nil {
 			return fmt.Errorf("report:generate-admin: find admin: %w", err)
 		}
-
-		title := "Platform report ready"
-		body := fmt.Sprintf("Your platform report is ready. Download it here (valid 24h): %s", downloadURL)
-		notifID, err := uuid.NewV7()
-		if err != nil {
-			return fmt.Errorf("report:generate-admin: generate notification id: %w", err)
+		key := fmt.Sprintf("reports/admin/%s.csv", id)
+		if err := deliverReport(ctx, mediaStorage, notificationRepo, notifier, key, data, usr, "Platform"); err != nil {
+			return fmt.Errorf("report:generate-admin: %w", err)
 		}
-		if err := notificationRepo.Create(ctx, &entity.Notification{
-			ID: notifID, UserID: usr.ID, Type: entity.NotificationTypeSystem, Title: title, Body: body,
-		}); err != nil {
-			return fmt.Errorf("report:generate-admin: create notification: %w", err)
-		}
-		return notifier.SendEmail(ctx, usr.Email, title, body)
+		return nil
 	})
 
 	scheduler := asynq.NewScheduler(redisOpt, nil)

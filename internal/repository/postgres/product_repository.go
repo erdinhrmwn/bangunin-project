@@ -78,6 +78,28 @@ func (r *ProductRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity
 	return r.scanOne(ctx, q, id)
 }
 
+func (r *ProductRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.Product, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	const q = selectProductCols + `FROM products WHERE id = ANY($1)`
+	rows, err := r.db.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: find products: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*entity.Product
+	for rows.Next() {
+		p, err := scanProduct(rows)
+		if err != nil {
+			return nil, fmt.Errorf("postgres: scan product: %w", err)
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func (r *ProductRepository) FindBySlug(ctx context.Context, slug string) (*entity.Product, error) {
 	const q = selectProductCols + `FROM products WHERE slug = $1`
 	return r.scanOne(ctx, q, slug)

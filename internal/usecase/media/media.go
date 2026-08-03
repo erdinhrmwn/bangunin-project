@@ -29,6 +29,12 @@ func isImage(contentType string) bool {
 	return contentType == "image/jpeg" || contentType == "image/png" || contentType == "image/webp"
 }
 
+// allowedScopes: only KYC document upload uses this endpoint today.
+// ponytail: single-entry allowlist, add scopes here as new upload flows adopt this endpoint.
+var allowedScopes = map[string]bool{
+	"kyc": true,
+}
+
 type Usecase struct {
 	storage service.StorageService
 	media   service.MediaEnqueuer
@@ -46,6 +52,10 @@ type UploadResult struct {
 // Upload validates type/size, stores the object under {scope}/{uuid}.{ext},
 // and enqueues a resize job for images (FR-3.1).
 func (u *Usecase) Upload(ctx context.Context, scope, contentType string, size int64, r io.Reader) (*UploadResult, error) {
+	if !allowedScopes[scope] {
+		return nil, apperr.New("INVALID_SCOPE", "Upload scope not allowed", 422)
+	}
+
 	ext, ok := extByContentType[contentType]
 	if !ok {
 		return nil, apperr.New("UNSUPPORTED_MEDIA_TYPE", "File type not allowed", 422)

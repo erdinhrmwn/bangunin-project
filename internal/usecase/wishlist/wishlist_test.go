@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +27,9 @@ func newUsecase(t *testing.T) (*wishlistusecase.Usecase, *deps) {
 		wishlists: mocks.NewMockWishlistRepository(t),
 		products:  mocks.NewMockProductRepository(t),
 	}
-	uc := wishlistusecase.New(d.wishlists, d.products)
+	rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	t.Cleanup(func() { _ = rdb.Close() })
+	uc := wishlistusecase.New(d.wishlists, d.products, rdb)
 	return uc, d
 }
 

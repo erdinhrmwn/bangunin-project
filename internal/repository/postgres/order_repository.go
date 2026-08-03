@@ -39,9 +39,15 @@ func (r *OrderRepository) Create(ctx context.Context, o *entity.Order) error {
 	return nil
 }
 
-func (r *OrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
-	if _, err := r.db.Exec(ctx, `UPDATE orders SET status = $2 WHERE id = $1`, id, status); err != nil {
+// UpdateStatus guards the update on the expected prior status; a mismatch
+// (concurrent transition already applied) surfaces as errs.ErrConflict.
+func (r *OrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) error {
+	tag, err := r.db.Exec(ctx, `UPDATE orders SET status = $2 WHERE id = $1 AND status = $3`, id, toStatus, fromStatus)
+	if err != nil {
 		return fmt.Errorf("postgres: update order status: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return errs.ErrConflict
 	}
 	return nil
 }
@@ -81,6 +87,23 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID uuid.UUID, pa
 	}
 	defer rows.Close()
 
+	out, err := collectOrders(rows)
+	return out, total, err
+}
+
+func (r *OrderRepository) ListAll(ctx context.Context, page, perPage int) ([]*entity.Order, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM orders`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("postgres: count orders: %w", err)
+	}
+	rows, err := r.db.Query(ctx,
+		selectOrderCols+`FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		perPage, (page-1)*perPage,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("postgres: list orders: %w", err)
+	}
+	defer rows.Close()
 	out, err := collectOrders(rows)
 	return out, total, err
 }
@@ -261,34 +284,30 @@ func (r *OrderRepository) SalesPerDay(ctx context.Context, supplierID uuid.UUID,
 }
 
 func (r *OrderRepository) PlatformSummary(ctx context.Context, from, to time.Time) (float64, map[string]int, error) {
-	var gmv float64
-	const gmvQ = `
-		SELECT COALESCE(SUM(total), 0) FROM orders
-		WHERE status = 'completed' AND created_at BETWEEN $1 AND $2
-	`
-	if err := r.db.QueryRow(ctx, gmvQ, from, to).Scan(&gmv); err != nil {
-		return 0, nil, fmt.Errorf("postgres: platform summary gmv: %w", err)
-	}
-
-	const statusQ = `
-		SELECT status, COUNT(*) FROM orders
+	const q = `
+		SELECT status, COUNT(*), COALESCE(SUM(total), 0) FROM orders
 		WHERE created_at BETWEEN $1 AND $2
 		GROUP BY status
 	`
-	rows, err := r.db.Query(ctx, statusQ, from, to)
+	rows, err := r.db.Query(ctx, q, from, to)
 	if err != nil {
-		return 0, nil, fmt.Errorf("postgres: platform summary by status: %w", err)
+		return 0, nil, fmt.Errorf("postgres: platform summary: %w", err)
 	}
 	defer rows.Close()
 
+	var gmv float64
 	byStatus := map[string]int{}
 	for rows.Next() {
 		var status string
 		var count int
-		if err := rows.Scan(&status, &count); err != nil {
-			return 0, nil, fmt.Errorf("postgres: scan platform summary status: %w", err)
+		var statusTotal float64
+		if err := rows.Scan(&status, &count, &statusTotal); err != nil {
+			return 0, nil, fmt.Errorf("postgres: scan platform summary: %w", err)
 		}
 		byStatus[status] = count
+		if status == "completed" {
+			gmv = statusTotal
+		}
 	}
 	return gmv, byStatus, rows.Err()
 }

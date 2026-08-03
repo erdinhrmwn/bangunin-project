@@ -16,7 +16,10 @@ func BodyLimit(c fiber.Ctx) error {
 	if strings.HasPrefix(c.Path(), "/api/v1/media") {
 		return c.Next()
 	}
-	if c.Request().Header.ContentLength() > defaultBodyLimit {
+	// len(Body()) reflects the actual bytes fasthttp read, unlike
+	// Header.ContentLength() which is -1/-2 (and thus never > limit) for
+	// chunked or unspecified-length requests.
+	if len(c.Request().Body()) > defaultBodyLimit {
 		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(response.Error("Request body too large", nil))
 	}
 	return c.Next()

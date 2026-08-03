@@ -1,7 +1,9 @@
 package report_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"testing"
 	"time"
 
@@ -121,4 +123,52 @@ func TestAdminExport_EnqueuesAdminReportGenerate(t *testing.T) {
 	err := uc.Export(context.Background(), adminID, from, to)
 
 	require.NoError(t, err)
+}
+
+func TestSummary_BuildCSV(t *testing.T) {
+	s := &reportusecase.Summary{
+		GMV: 1000.5, OrdersCount: 4, AOV: 250.125,
+		TopProducts: []*entity.TopProduct{{ProductName: "Semen", Qty: 10, Revenue: 500}},
+		SalesPerDay: []*entity.DailySales{{Day: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), GMV: 1000, Orders: 4}},
+	}
+
+	data, err := s.BuildCSV()
+	require.NoError(t, err)
+
+	r := csv.NewReader(bytes.NewReader(data))
+	r.FieldsPerRecord = -1
+	rows, err := r.ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, [][]string{
+		{"GMV", "Orders", "AOV"},
+		{"1000.50", "4", "250.12"},
+		{"Product", "Qty", "Revenue"},
+		{"Semen", "10", "500.00"},
+		{"Day", "GMV", "Orders"},
+		{"2026-01-15", "1000.00", "4"},
+	}, rows)
+}
+
+func TestAdminSummary_BuildCSV(t *testing.T) {
+	s := &reportusecase.AdminSummary{
+		GMV: 5000, Commission: 200, OrdersByStatus: map[string]int{"completed": 3},
+		ActiveSuppliers: 12, NewUsers: 7,
+		SalesPerDay: []*entity.DailySales{{Day: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), GMV: 5000, Orders: 3}},
+	}
+
+	data, err := s.BuildCSV()
+	require.NoError(t, err)
+
+	r := csv.NewReader(bytes.NewReader(data))
+	r.FieldsPerRecord = -1
+	rows, err := r.ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, [][]string{
+		{"GMV", "Commission", "ActiveSuppliers", "NewUsers"},
+		{"5000.00", "200.00", "12", "7"},
+		{"Status", "Count"},
+		{"completed", "3"},
+		{"Day", "GMV", "Orders"},
+		{"2026-01-15", "5000.00", "3"},
+	}, rows)
 }

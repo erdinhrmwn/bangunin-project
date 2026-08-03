@@ -129,5 +129,8 @@ func parseAuditRange(fromStr, toStr string) (from, to time.Time) {
 	if t, err := time.Parse("2006-01-02", toStr); err == nil {
 		to = t
 	}
+	if from.After(to) {
+		from, to = to, from
+	}
 	return from, to
 }

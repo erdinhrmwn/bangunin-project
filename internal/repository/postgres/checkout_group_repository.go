@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
@@ -83,10 +84,17 @@ func (r *CheckoutGroupRepository) Confirm(ctx context.Context, g *entity.Checkou
 		INSERT INTO order_items (id, order_id, variant_id, product_name, variant_name, unit, price, qty, weight_gram)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	const availQ = `
-		SELECT stock - COALESCE((SELECT sum(qty) FROM stock_reservations WHERE variant_id = $1 AND status = 'active'), 0)
-		FROM product_variants WHERE id = $1 FOR UPDATE
-	`
+	// Lock and stock-sum MUST be two statements, not one combined query.
+	// Postgres/READ COMMITTED only re-snapshots a blocked FOR UPDATE query
+	// when the locked row itself was updated by the unblocking transaction;
+	// product_variants.stock isn't touched at reservation time (only at
+	// paid-conversion), so a single combined statement lets the blocked
+	// transaction's subquery run against its stale pre-block snapshot,
+	// missing the other transaction's just-committed reservation and
+	// overselling stock. A second statement, issued only after the lock
+	// is granted, gets a fresh READ COMMITTED snapshot that sees it.
+	const lockQ = `SELECT stock FROM product_variants WHERE id = $1 FOR UPDATE`
+	const sumQ = `SELECT COALESCE(sum(qty), 0) FROM stock_reservations WHERE variant_id = $1 AND status = 'active'`
 	const reservationQ = `
 		INSERT INTO stock_reservations (id, variant_id, order_id, qty, status, expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -104,6 +112,32 @@ func (r *CheckoutGroupRepository) Confirm(ctx context.Context, g *entity.Checkou
 			return fmt.Errorf("postgres: create order: %w", err)
 		}
 
+		// Acquire the FOR UPDATE lock on every referenced variant before the
+		// order_items insert below, whose FK triggers an implicit FOR KEY
+		// SHARE lock on product_variants. Locking weakest-first (share, then
+		// exclusive) is what deadlocks two concurrent Confirm calls on the
+		// same variant; strongest-first avoids the upgrade.
+		for _, res := range o.Reservations {
+			var stock int
+			if err := tx.QueryRow(ctx, lockQ, res.VariantID).Scan(&stock); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return errs.ErrNotFound
+				}
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "40P01" {
+					return errs.ErrConflict
+				}
+				return fmt.Errorf("postgres: check variant availability: %w", err)
+			}
+			var reserved int
+			if err := tx.QueryRow(ctx, sumQ, res.VariantID).Scan(&reserved); err != nil {
+				return fmt.Errorf("postgres: sum variant reservations: %w", err)
+			}
+			if stock-reserved < res.Qty {
+				return errs.ErrConflict
+			}
+		}
+
 		for _, it := range o.Items {
 			if _, err := tx.Exec(ctx, itemQ, it.ID, it.OrderID, it.VariantID, it.ProductName, it.VariantName, it.Unit, it.Price, it.Qty, it.WeightGram); err != nil {
 				return fmt.Errorf("postgres: create order item: %w", err)
@@ -111,16 +145,6 @@ func (r *CheckoutGroupRepository) Confirm(ctx context.Context, g *entity.Checkou
 		}
 
 		for _, res := range o.Reservations {
-			var available int
-			if err := tx.QueryRow(ctx, availQ, res.VariantID).Scan(&available); err != nil {
-				if errors.Is(err, pgx.ErrNoRows) {
-					return errs.ErrNotFound
-				}
-				return fmt.Errorf("postgres: check variant availability: %w", err)
-			}
-			if available < res.Qty {
-				return errs.ErrConflict
-			}
 			if _, err := tx.Exec(ctx, reservationQ, res.ID, res.VariantID, res.OrderID, res.Qty, res.Status, res.ExpiresAt); err != nil {
 				return fmt.Errorf("postgres: create stock reservation: %w", err)
 			}

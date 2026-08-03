@@ -21,6 +21,12 @@ func newUsecase(t *testing.T) (*mediausecase.Usecase, *svcmocks.MockStorageServi
 	return mediausecase.New(storage, enqueuer), storage, enqueuer
 }
 
+func TestUpload_InvalidScope(t *testing.T) {
+	uc, _, _ := newUsecase(t)
+	_, err := uc.Upload(context.Background(), "../../etc", "image/png", 100, bytes.NewReader(nil))
+	assert.Equal(t, "INVALID_SCOPE", apperr.From(err).Code)
+}
+
 func TestUpload_UnsupportedType(t *testing.T) {
 	uc, _, _ := newUsecase(t)
 	_, err := uc.Upload(context.Background(), "kyc", "application/x-msdownload", 100, bytes.NewReader(nil))

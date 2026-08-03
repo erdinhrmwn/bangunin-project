@@ -13,6 +13,7 @@ import (
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
+	"erdinhrmwn/bangunin/internal/pkg/notify"
 )
 
 // lowStockNotifyTTL caps low-stock notifications to once per variant per
@@ -90,17 +91,9 @@ func (u *Usecase) CheckLowStock(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("inventory: find supplier for low-stock variant: %w", err)
 		}
-		notifID, err := uuid.NewV7()
-		if err != nil {
-			return fmt.Errorf("inventory: generate notification id: %w", err)
-		}
-		if err := u.notify.Create(ctx, &entity.Notification{
-			ID:     notifID,
-			UserID: s.UserID,
-			Type:   entity.NotificationTypeLowStock,
-			Title:  "Low stock: " + v.Name,
-			Body:   fmt.Sprintf("%s (SKU %s) has %d units left, below the %d threshold.", v.Name, v.SKU, v.Stock, u.threshold),
-		}); err != nil {
+		title := "Low stock: " + v.Name
+		body := fmt.Sprintf("%s (SKU %s) has %d units left, below the %d threshold.", v.Name, v.SKU, v.Stock, u.threshold)
+		if err := notify.Send(ctx, u.notify, s.UserID, entity.NotificationTypeLowStock, title, body); err != nil {
 			return fmt.Errorf("inventory: create low-stock notification: %w", err)
 		}
 	}

@@ -364,6 +364,65 @@ func (_c *MockProductVariantRepository_FindByIDAndSupplier_Call) RunAndReturn(ru
 	return _c
 }
 
+// FindByIDs provides a mock function with given fields: ctx, ids
+func (_m *MockProductVariantRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.ProductVariant, error) {
+	ret := _m.Called(ctx, ids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByIDs")
+	}
+
+	var r0 []*entity.ProductVariant
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []uuid.UUID) ([]*entity.ProductVariant, error)); ok {
+		return rf(ctx, ids)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []uuid.UUID) []*entity.ProductVariant); ok {
+		r0 = rf(ctx, ids)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*entity.ProductVariant)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
+		r1 = rf(ctx, ids)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProductVariantRepository_FindByIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByIDs'
+type MockProductVariantRepository_FindByIDs_Call struct {
+	*mock.Call
+}
+
+// FindByIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ids []uuid.UUID
+func (_e *MockProductVariantRepository_Expecter) FindByIDs(ctx interface{}, ids interface{}) *MockProductVariantRepository_FindByIDs_Call {
+	return &MockProductVariantRepository_FindByIDs_Call{Call: _e.mock.On("FindByIDs", ctx, ids)}
+}
+
+func (_c *MockProductVariantRepository_FindByIDs_Call) Run(run func(ctx context.Context, ids []uuid.UUID)) *MockProductVariantRepository_FindByIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockProductVariantRepository_FindByIDs_Call) Return(_a0 []*entity.ProductVariant, _a1 error) *MockProductVariantRepository_FindByIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductVariantRepository_FindByIDs_Call) RunAndReturn(run func(context.Context, []uuid.UUID) ([]*entity.ProductVariant, error)) *MockProductVariantRepository_FindByIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListBelowThreshold provides a mock function with given fields: ctx, threshold
 func (_m *MockProductVariantRepository) ListBelowThreshold(ctx context.Context, threshold int) ([]*entity.ProductVariant, error) {
 	ret := _m.Called(ctx, threshold)

@@ -238,6 +238,73 @@ func (_c *MockOrderRepository_FindItemByID_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// ListAll provides a mock function with given fields: ctx, page, perPage
+func (_m *MockOrderRepository) ListAll(ctx context.Context, page int, perPage int) ([]*entity.Order, int, error) {
+	ret := _m.Called(ctx, page, perPage)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAll")
+	}
+
+	var r0 []*entity.Order
+	var r1 int
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) ([]*entity.Order, int, error)); ok {
+		return rf(ctx, page, perPage)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) []*entity.Order); ok {
+		r0 = rf(ctx, page, perPage)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*entity.Order)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int, int) int); ok {
+		r1 = rf(ctx, page, perPage)
+	} else {
+		r1 = ret.Get(1).(int)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, int, int) error); ok {
+		r2 = rf(ctx, page, perPage)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOrderRepository_ListAll_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAll'
+type MockOrderRepository_ListAll_Call struct {
+	*mock.Call
+}
+
+// ListAll is a helper method to define mock.On call
+//   - ctx context.Context
+//   - page int
+//   - perPage int
+func (_e *MockOrderRepository_Expecter) ListAll(ctx interface{}, page interface{}, perPage interface{}) *MockOrderRepository_ListAll_Call {
+	return &MockOrderRepository_ListAll_Call{Call: _e.mock.On("ListAll", ctx, page, perPage)}
+}
+
+func (_c *MockOrderRepository_ListAll_Call) Run(run func(ctx context.Context, page int, perPage int)) *MockOrderRepository_ListAll_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int), args[2].(int))
+	})
+	return _c
+}
+
+func (_c *MockOrderRepository_ListAll_Call) Return(_a0 []*entity.Order, _a1 int, _a2 error) *MockOrderRepository_ListAll_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockOrderRepository_ListAll_Call) RunAndReturn(run func(context.Context, int, int) ([]*entity.Order, int, error)) *MockOrderRepository_ListAll_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListByCheckoutGroupID provides a mock function with given fields: ctx, checkoutGroupID
 func (_m *MockOrderRepository) ListByCheckoutGroupID(ctx context.Context, checkoutGroupID uuid.UUID) ([]*entity.Order, error) {
 	ret := _m.Called(ctx, checkoutGroupID)
@@ -867,17 +934,17 @@ func (_c *MockOrderRepository_TopProducts_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
-// UpdateStatus provides a mock function with given fields: ctx, id, status
-func (_m *MockOrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
-	ret := _m.Called(ctx, id, status)
+// UpdateStatus provides a mock function with given fields: ctx, id, fromStatus, toStatus
+func (_m *MockOrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, fromStatus string, toStatus string) error {
+	ret := _m.Called(ctx, id, fromStatus, toStatus)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateStatus")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) error); ok {
-		r0 = rf(ctx, id, status)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) error); ok {
+		r0 = rf(ctx, id, fromStatus, toStatus)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -893,14 +960,15 @@ type MockOrderRepository_UpdateStatus_Call struct {
 // UpdateStatus is a helper method to define mock.On call
 //   - ctx context.Context
 //   - id uuid.UUID
-//   - status string
-func (_e *MockOrderRepository_Expecter) UpdateStatus(ctx interface{}, id interface{}, status interface{}) *MockOrderRepository_UpdateStatus_Call {
-	return &MockOrderRepository_UpdateStatus_Call{Call: _e.mock.On("UpdateStatus", ctx, id, status)}
+//   - fromStatus string
+//   - toStatus string
+func (_e *MockOrderRepository_Expecter) UpdateStatus(ctx interface{}, id interface{}, fromStatus interface{}, toStatus interface{}) *MockOrderRepository_UpdateStatus_Call {
+	return &MockOrderRepository_UpdateStatus_Call{Call: _e.mock.On("UpdateStatus", ctx, id, fromStatus, toStatus)}
 }
 
-func (_c *MockOrderRepository_UpdateStatus_Call) Run(run func(ctx context.Context, id uuid.UUID, status string)) *MockOrderRepository_UpdateStatus_Call {
+func (_c *MockOrderRepository_UpdateStatus_Call) Run(run func(ctx context.Context, id uuid.UUID, fromStatus string, toStatus string)) *MockOrderRepository_UpdateStatus_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string))
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -910,7 +978,7 @@ func (_c *MockOrderRepository_UpdateStatus_Call) Return(_a0 error) *MockOrderRep
 	return _c
 }
 
-func (_c *MockOrderRepository_UpdateStatus_Call) RunAndReturn(run func(context.Context, uuid.UUID, string) error) *MockOrderRepository_UpdateStatus_Call {
+func (_c *MockOrderRepository_UpdateStatus_Call) RunAndReturn(run func(context.Context, uuid.UUID, string, string) error) *MockOrderRepository_UpdateStatus_Call {
 	_c.Call.Return(run)
 	return _c
 }

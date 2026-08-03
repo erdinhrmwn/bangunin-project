@@ -2,8 +2,13 @@ package checkout_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -33,6 +38,7 @@ type deps struct {
 	suppliers      *mocks.MockSupplierRepository
 	shippingGW     *servicemocks.MockShippingGateway
 	paymentGW      *servicemocks.MockPaymentGateway
+	quotes         *infraredis.KVStore
 }
 
 // newUsecase wires a checkout.Usecase against mockery-mocked repos and a
@@ -57,13 +63,28 @@ func newUsecase(t *testing.T) (*checkoutusecase.Usecase, *deps) {
 		suppliers:      mocks.NewMockSupplierRepository(t),
 		shippingGW:     servicemocks.NewMockShippingGateway(t),
 		paymentGW:      servicemocks.NewMockPaymentGateway(t),
+		quotes:         infraredis.NewKVStore(rdb),
 	}
 	uc := checkoutusecase.New(
 		d.checkoutGroups, d.payments, d.reservations, d.addresses, d.carts,
 		d.variants, d.products, d.suppliers, d.shippingGW, d.paymentGW,
-		infraredis.NewStockLock(rdb),
+		infraredis.NewStockLock(rdb), d.quotes,
 	)
 	return uc, d
+}
+
+// seedQuote caches a valid shipping-cost quote for supplierID+variantID as
+// Preview would, so Confirm-exercising tests pass the new server-side cost
+// check. The cache key must match checkout.quoteKey's basket fingerprint
+// (userID + addrID + sha256 of sorted "variantID:qty" pairs) or Confirm
+// rejects it as QUOTE_EXPIRED before ever reaching the mocked repos.
+func seedQuote(t *testing.T, d *deps, userID, addrID, supplierID, variantID uuid.UUID, qty int, cost float64) {
+	t.Helper()
+	data, err := json.Marshal(map[string][]float64{supplierID.String(): {cost}})
+	require.NoError(t, err)
+	sum := sha256.Sum256([]byte(variantID.String() + ":" + strconv.Itoa(qty)))
+	key := "checkout_quote:" + userID.String() + ":" + addrID.String() + ":" + hex.EncodeToString(sum[:])
+	require.NoError(t, d.quotes.Set(context.Background(), key, string(data), time.Minute))
 }
 
 func appErrCode(t *testing.T, err error) string {
@@ -85,7 +106,8 @@ func TestPreview_VariantInactive_Rejected(t *testing.T) {
 	uc, d := newUsecase(t)
 	userID, addrID, variantID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{ID: variantID, IsActive: false}, nil)
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{ID: variantID, IsActive: false}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return(nil, nil)
 
 	_, err := uc.Preview(context.Background(), userID, addrID, []checkoutusecase.ItemRequest{{VariantID: variantID, Qty: 1}})
 
@@ -96,7 +118,8 @@ func TestPreview_OutOfStock_Rejected(t *testing.T) {
 	uc, d := newUsecase(t)
 	userID, addrID, variantID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{ID: variantID, IsActive: true, MinOrderQty: 1, Stock: 1}, nil)
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{ID: variantID, IsActive: true, MinOrderQty: 1, Stock: 1}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return(nil, nil)
 
 	_, err := uc.Preview(context.Background(), userID, addrID, []checkoutusecase.ItemRequest{{VariantID: variantID, Qty: 2}})
 
@@ -107,10 +130,10 @@ func TestPreview_SupplierNotApproved_Rejected(t *testing.T) {
 	uc, d := newUsecase(t)
 	userID, addrID, variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{
 		ID: variantID, ProductID: productID, SupplierID: supplierID, IsActive: true, MinOrderQty: 1, Stock: 10,
-	}, nil)
-	d.products.EXPECT().FindByID(mock.Anything, productID).Return(&entity.Product{ID: productID, Status: entity.ProductStatusActive}, nil)
+	}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.Product{{ID: productID, Status: entity.ProductStatusActive}}, nil)
 	d.suppliers.EXPECT().FindByID(mock.Anything, supplierID).Return(&entity.Supplier{ID: supplierID, Status: entity.SupplierStatusPending}, nil)
 
 	_, err := uc.Preview(context.Background(), userID, addrID, []checkoutusecase.ItemRequest{{VariantID: variantID, Qty: 1}})
@@ -124,11 +147,11 @@ func TestPreview_Success_GroupsPerSupplierWithShippingAndFleet(t *testing.T) {
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID, CityID: 200}, nil)
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{
+	d.variants.EXPECT().FindByIDs(mock.Anything, []uuid.UUID{variantID}).Return([]*entity.ProductVariant{{
 		ID: variantID, ProductID: productID, SupplierID: supplierID, IsActive: true,
 		MinOrderQty: 1, Stock: 10, Price: 50000, WeightGram: 1000,
-	}, nil)
-	d.products.EXPECT().FindByID(mock.Anything, productID).Return(&entity.Product{ID: productID, Name: "Semen", Status: entity.ProductStatusActive}, nil)
+	}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.Product{{ID: productID, Name: "Semen", Status: entity.ProductStatusActive}}, nil)
 	d.suppliers.EXPECT().FindByID(mock.Anything, supplierID).Return(&entity.Supplier{
 		ID: supplierID, StoreName: "Toko A", Status: entity.SupplierStatusApproved,
 		OriginCityID: 100, OwnFleetEnabled: true, FleetFlatRate: 25000,
@@ -159,10 +182,10 @@ func confirmChoice(supplierID, variantID uuid.UUID, qty int, shippingCost float6
 }
 
 func stubConfirmItemLookups(d *deps, variantID, productID, supplierID uuid.UUID) {
-	d.variants.EXPECT().FindByID(mock.Anything, variantID).Return(&entity.ProductVariant{
+	d.variants.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.ProductVariant{{
 		ID: variantID, ProductID: productID, SupplierID: supplierID, Price: 50000, WeightGram: 1000,
-	}, nil)
-	d.products.EXPECT().FindByID(mock.Anything, productID).Return(&entity.Product{ID: productID, Name: "Semen"}, nil)
+	}}, nil)
+	d.products.EXPECT().FindByIDs(mock.Anything, mock.Anything).Return([]*entity.Product{{ID: productID, Name: "Semen"}}, nil)
 }
 
 func TestConfirm_ForbiddenWhenAddressNotOwned(t *testing.T) {
@@ -182,6 +205,7 @@ func TestConfirm_Success_ClearsCartAndCreatesInvoice(t *testing.T) {
 	cartID, itemID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, variantID, 1, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 	d.checkoutGroups.EXPECT().Confirm(mock.Anything, mock.AnythingOfType("*entity.CheckoutGroup"), mock.AnythingOfType("[]repository.ConfirmOrder")).
 		Run(func(_ context.Context, g *entity.CheckoutGroup, orders []repository.ConfirmOrder) {
@@ -211,11 +235,14 @@ func TestConfirm_InvoiceFailure_ReleasesReservationsAndMarksFailed(t *testing.T)
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, variantID, 1, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 	d.checkoutGroups.EXPECT().Confirm(mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	d.paymentGW.EXPECT().CreateInvoice(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("", "", service.ErrShippingUnavailable)
 	d.checkoutGroups.EXPECT().UpdateStatus(mock.Anything, mock.Anything, entity.CheckoutGroupStatusPaymentFailed).Return(nil)
-	d.reservations.EXPECT().UpdateStatus(mock.Anything, mock.Anything, entity.StockReservationStatusReleased).Return(nil)
+	d.reservations.EXPECT().ApplyAdjustments(mock.Anything, mock.MatchedBy(func(adjs []repository.ReservationAdjustment) bool {
+		return len(adjs) == 1 && adjs[0].VariantID == variantID && adjs[0].Status == entity.StockReservationStatusReleased
+	})).Return(nil)
 
 	_, err := uc.Confirm(context.Background(), userID, addrID, []checkoutusecase.ConfirmGroupChoice{
 		confirmChoice(supplierID, variantID, 1, 10000),
@@ -232,6 +259,7 @@ func TestConfirm_StockConflictFromRepo_Propagates409(t *testing.T) {
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, variantID, 1, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 	d.checkoutGroups.EXPECT().Confirm(mock.Anything, mock.Anything, mock.Anything).Return(errs.ErrConflict)
 
@@ -256,6 +284,7 @@ func TestConfirm_ConcurrentSameVariant_OnlyOneAcquiresLock(t *testing.T) {
 	variantID, productID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 
 	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil).Twice()
+	seedQuote(t, d, userID, addrID, supplierID, variantID, 1, 10000)
 	stubConfirmItemLookups(d, variantID, productID, supplierID)
 
 	holding := make(chan struct{})
@@ -292,4 +321,33 @@ func TestConfirm_ConcurrentSameVariant_OnlyOneAcquiresLock(t *testing.T) {
 
 	require.NoError(t, errA, "the lock holder should complete successfully")
 	require.Equal(t, "CONFLICT", appErrCode(t, errB), "the second confirm should get 409 while the lock is held")
+}
+
+func TestConfirm_NoPriorQuote_RejectsAsExpired(t *testing.T) {
+	uc, d := newUsecase(t)
+	userID, addrID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	variantID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+
+	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+
+	_, err := uc.Confirm(context.Background(), userID, addrID, []checkoutusecase.ConfirmGroupChoice{
+		confirmChoice(supplierID, variantID, 1, 10000),
+	})
+
+	require.Equal(t, "QUOTE_EXPIRED", appErrCode(t, err))
+}
+
+func TestConfirm_ShippingCostMismatch_Rejected(t *testing.T) {
+	uc, d := newUsecase(t)
+	userID, addrID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	variantID, supplierID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+
+	d.addresses.EXPECT().FindByID(mock.Anything, addrID).Return(&entity.UserAddress{ID: addrID, UserID: userID}, nil)
+	seedQuote(t, d, userID, addrID, supplierID, variantID, 1, 10000)
+
+	_, err := uc.Confirm(context.Background(), userID, addrID, []checkoutusecase.ConfirmGroupChoice{
+		confirmChoice(supplierID, variantID, 1, 0),
+	})
+
+	require.Equal(t, "SHIPPING_COST_MISMATCH", appErrCode(t, err))
 }
