@@ -288,7 +288,7 @@ erDiagram
     users ||--o{ audit_logs : "actor"
 
     supplier_balances {
-        uuid supplier_id PK_FK
+        uuid supplier_id PK, FK
         numeric available_balance
         numeric pending_balance "order not yet completed"
         timestamptz updated_at
