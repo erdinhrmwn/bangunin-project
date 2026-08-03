@@ -91,25 +91,25 @@ marketplace-bahan-bangunan/
 │   │   └── errs/
 │   │       └── errors.go            # domain error types (ErrNotFound, ErrInsufficientStock, ...)
 │   │
-│   ├── usecase/                     # LAYER 2: business logic
-│   │   ├── auth/
-│   │   ├── user/
-│   │   ├── supplier/
-│   │   ├── admin/
-│   │   ├── category/
-│   │   ├── product/
-│   │   ├── inventory/
-│   │   ├── catalog/                 # search, filter, product listing publik
-│   │   ├── cart/
-│   │   ├── checkout/                # orkestrasi: validasi → ongkir → split order → payment
-│   │   ├── order/
-│   │   ├── shipping/
-│   │   ├── review/
-│   │   ├── wishlist/
-│   │   ├── payout/
-│   │   ├── notification/
-│   │   ├── report/
-│   │   └── media/
+│   ├── usecase/                     # LAYER 2: business logic (flat — 1 file per module, package tunggal `usecase`)
+│   │   ├── auth_usecase.go
+│   │   ├── user_usecase.go
+│   │   ├── supplier_usecase.go
+│   │   ├── admin_usecase.go
+│   │   ├── category_usecase.go
+│   │   ├── product_usecase.go
+│   │   ├── inventory_usecase.go
+│   │   ├── catalog_usecase.go       # search, filter, product listing publik
+│   │   ├── cart_usecase.go
+│   │   ├── checkout_usecase.go      # orkestrasi: validasi → ongkir → split order → payment
+│   │   ├── order_usecase.go
+│   │   ├── shipping_usecase.go
+│   │   ├── review_usecase.go
+│   │   ├── wishlist_usecase.go
+│   │   ├── payout_usecase.go
+│   │   ├── notification_usecase.go
+│   │   ├── report_usecase.go
+│   │   └── media_usecase.go
 │   │
 │   ├── delivery/                    # LAYER 3: transport
 │   │   └── http/
@@ -139,7 +139,7 @@ marketplace-bahan-bangunan/
 │   │
 │   ├── infra/                       # adapter dunia luar
 │   │   ├── database/postgres.go     # pool + health
-│   │   ├── redis/client.go
+│   │   ├── cache/client.go          # inisialisasi & koneksi Redis client (nama `cache` agar tidak duplikat dengan repository/redis)
 │   │   ├── grpcclient/
 │   │   │   ├── payment.go           # implementasi domain/service/payment_service.go
 │   │   │   └── notification.go
