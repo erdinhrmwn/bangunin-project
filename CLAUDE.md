@@ -26,10 +26,10 @@ cmd/{api,worker,migrate}/main.go
 config/
 internal/
   domain/{entity, repository(interface), service(interface eksternal), errs}
-  usecase/{auth,user,supplier,admin,category,product,inventory,catalog,cart,checkout,order,shipping,review,wishlist,payout,notification,report,media}
+  usecase/            # FLAT — satu package `usecase`, 1 file per module: auth_usecase.go, user_usecase.go, supplier_usecase.go, admin_usecase.go, category_usecase.go, product_usecase.go, inventory_usecase.go, catalog_usecase.go, cart_usecase.go, checkout_usecase.go, order_usecase.go, shipping_usecase.go, review_usecase.go, wishlist_usecase.go, payout_usecase.go, notification_usecase.go, report_usecase.go, media_usecase.go (test: *_usecase_test.go berdampingan). JANGAN membuat subfolder per module di dalam usecase.
   delivery/http/{handler, middleware, dto, route}
   repository/{postgres, redis}
-  infra/{database, redis, grpcclient, rajaongkir, storage, queue}
+  infra/{database, cache, grpcclient, rajaongkir, storage, queue}   # `cache` = init Redis client (bukan `redis`, hindari duplikasi nama dengan repository/redis)
   app/{server.go, container.go}   # DI manual
 pkg/{jwt, response, pagination, validator, hash, logger, apperr}
 proto/  migrations/  seeds/  docs/  deploy/  scripts/  test/
