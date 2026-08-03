@@ -1,6 +1,6 @@
-# ERD & Alur Proses — Marketplace Bahan Bangunan
+# ERD & Process Flows — Building Materials Marketplace
 
-Semua diagram menggunakan Mermaid. ERD dipecah per domain agar mudah dibaca; relasi lintas domain dicatat di bagian akhir ERD.
+All diagrams use Mermaid. The ERD is split per domain for readability; cross-domain relations are noted at the end of the ERD section.
 
 ---
 
@@ -12,7 +12,7 @@ Semua diagram menggunakan Mermaid. ERD dipecah per domain agar mudah dibaca; rel
 erDiagram
     roles ||--o{ users : "has many"
     users ||--o{ user_addresses : "has many"
-    users ||--o| suppliers : "has one (jika role supplier)"
+    users ||--o| suppliers : "has one (if role supplier)"
     suppliers ||--o{ supplier_documents : "has many"
     suppliers ||--o{ supplier_bank_accounts : "has many"
 
@@ -36,7 +36,7 @@ erDiagram
     user_addresses {
         uuid id PK
         uuid user_id FK
-        varchar label "rumah | proyek | gudang"
+        varchar label "home | project | warehouse"
         varchar recipient_name
         varchar recipient_phone
         int province_id "ref RajaOngkir"
@@ -54,10 +54,10 @@ erDiagram
         varchar slug UK
         text description
         varchar status "pending | approved | rejected | suspended"
-        int origin_city_id "origin ongkir (RajaOngkir)"
+        int origin_city_id "shipping origin (RajaOngkir)"
         text pickup_address
-        boolean own_fleet_enabled "armada sendiri"
-        int fleet_coverage_km "jangkauan armada"
+        boolean own_fleet_enabled "own fleet"
+        int fleet_coverage_km "fleet coverage range"
         numeric fleet_flat_rate
         timestamptz verified_at
     }
@@ -81,7 +81,7 @@ erDiagram
     }
 ```
 
-### 1.2 Domain: Katalog & Inventory
+### 1.2 Domain: Catalog & Inventory
 
 ```mermaid
 erDiagram
@@ -109,7 +109,7 @@ erDiagram
         varchar name
         varchar slug UK
         text description
-        jsonb specs "merk, material, dimensi, dll"
+        jsonb specs "brand, material, dimensions, etc."
         varchar status "draft | active | inactive | banned"
         numeric rating_avg
         int rating_count
@@ -122,9 +122,9 @@ erDiagram
         uuid product_id FK
         varchar name "40kg | 50kg | 6m | 12m"
         varchar sku UK
-        varchar unit "sak | batang | m3 | dus | pcs"
+        varchar unit "sack | rod | m3 | box | pcs"
         numeric price
-        int weight_gram "wajib - dasar ongkir"
+        int weight_gram "required - basis for shipping cost"
         int length_cm
         int width_cm
         int height_cm
@@ -175,7 +175,7 @@ erDiagram
     orders ||--o{ order_items : "has many"
     orders ||--o{ order_status_histories : "has many"
     orders ||--o| shipments : "has one"
-    order_items ||--o| reviews : "has one (setelah completed)"
+    order_items ||--o| reviews : "has one (after completed)"
 
     carts {
         uuid id PK
@@ -220,9 +220,9 @@ erDiagram
         varchar status "pending_payment .. completed"
         numeric subtotal
         numeric shipping_cost
-        numeric commission_amount "komisi platform"
+        numeric commission_amount "platform commission"
         numeric total
-        jsonb shipping_address "snapshot alamat"
+        jsonb shipping_address "address snapshot"
         timestamptz created_at
     }
 
@@ -275,7 +275,7 @@ erDiagram
     }
 ```
 
-### 1.4 Domain: Finance (Payout), Notifikasi & Lainnya
+### 1.4 Domain: Finance (Payout), Notifications & Others
 
 ```mermaid
 erDiagram
@@ -290,7 +290,7 @@ erDiagram
     supplier_balances {
         uuid supplier_id PK_FK
         numeric available_balance
-        numeric pending_balance "order belum completed"
+        numeric pending_balance "order not yet completed"
         timestamptz updated_at
     }
 
@@ -302,7 +302,7 @@ erDiagram
         varchar ref_type "order | withdraw"
         uuid ref_id
         numeric balance_after
-        timestamptz created_at "append-only, tanpa update/delete"
+        timestamptz created_at "append-only, no update/delete"
     }
 
     withdraw_requests {
@@ -357,39 +357,39 @@ erDiagram
     }
 ```
 
-### 1.5 Relasi Lintas Domain (ringkasan)
+### 1.5 Cross-Domain Relations (summary)
 
-- `suppliers.user_id → users.id` (1:1, unik — satu akun satu peran sesuai keputusan `role_id` di `users`)
+- `suppliers.user_id → users.id` (1:1, unique — one account, one role per the `role_id` decision in `users`)
 - `products.supplier_id → suppliers.id`
 - `cart_items.variant_id → product_variants.id`
 - `orders.supplier_id → suppliers.id`, `orders.user_id → users.id`
 - `stock_reservations.order_id → orders.id`
 - `ledger_entries.ref_id → orders.id / withdraw_requests.id`
-- `reviews.product_id → products.id` (agregat rating disimpan denormalized di `products`)
+- `reviews.product_id → products.id` (rating aggregate stored denormalized in `products`)
 
 ---
 
-## 2. Alur Proses
+## 2. Process Flows
 
-### 2.1 Registrasi & Approval Supplier
+### 2.1 Supplier Registration & Approval
 
 ```mermaid
 flowchart TD
-    A[User register akun\nrole: supplier] --> B[Verifikasi email OTP]
-    B --> C[Lengkapi profil toko:\nnama, alamat, origin city,\nrekening bank]
-    C --> D[Upload dokumen:\nNIB / KTP / NPWP]
-    D --> E[Submit pengajuan\nstatus: pending]
-    E --> F{Review oleh Admin}
-    F -- Approve --> G[status: approved\nverified_at diisi]
-    G --> H[Notifikasi email + in-app\nSupplier bisa mulai jualan]
+    A[User registers account\nrole: supplier] --> B[Email OTP verification]
+    B --> C[Complete store profile:\nname, address, origin city,\nbank account]
+    C --> D[Upload documents:\nNIB / KTP / NPWP]
+    D --> E[Submit application\nstatus: pending]
+    E --> F{Admin review}
+    F -- Approve --> G[status: approved\nverified_at set]
+    G --> H[Email + in-app notification\nSupplier can start selling]
     F -- Reject --> I[status: rejected\n+ rejection_note]
-    I --> J[Notifikasi alasan penolakan]
+    I --> J[Notification of rejection reason]
     J --> C
     G -.-> K[audit_logs:\nsupplier.approve]
     I -.-> K2[audit_logs:\nsupplier.reject]
 ```
 
-### 2.2 Checkout & Pembayaran (end-to-end)
+### 2.2 Checkout & Payment (end-to-end)
 
 ```mermaid
 sequenceDiagram
@@ -403,18 +403,18 @@ sequenceDiagram
     participant XD as Xendit
 
     U->>API: POST /checkout/preview (cart items, address)
-    API->>DB: Validasi stok, harga, min_order_qty
-    API->>API: Group item per supplier (split order)
+    API->>DB: Validate stock, price, min_order_qty
+    API->>API: Group items per supplier (split order)
     loop per supplier
-        API->>RO: Hitung ongkir (origin supplier → tujuan,\nberat total vs volumetrik)
-        RO-->>API: Daftar kurir + tarif
+        API->>RO: Calculate shipping cost (supplier origin → destination,\ntotal weight vs volumetric)
+        RO-->>API: List of couriers + rates
     end
-    API-->>U: Ringkasan: N order, subtotal, opsi kurir per order
+    API-->>U: Summary: N orders, subtotal, courier options per order
 
-    U->>API: POST /checkout/confirm (pilihan kurir)
-    API->>RD: Acquire lock stok per variant
+    U->>API: POST /checkout/confirm (courier selection)
+    API->>RD: Acquire lock on stock per variant
     API->>DB: BEGIN TX
-    API->>DB: Validasi ulang harga & stok
+    API->>DB: Re-validate price & stock
     API->>DB: INSERT checkout_group + orders (per supplier)\n+ order_items (snapshot) + stock_reservations
     API->>DB: COMMIT
     API->>RD: Release lock
@@ -423,64 +423,64 @@ sequenceDiagram
     XD-->>PS: invoice_id + invoice_url
     PS-->>API: invoice_url, expires_at
     API->>DB: INSERT payments (pending)
-    API-->>U: Redirect ke invoice_url Xendit
+    API-->>U: Redirect to Xendit invoice_url
 
-    U->>XD: Bayar (VA / e-wallet / QRIS)
+    U->>XD: Pay (VA / e-wallet / QRIS)
     XD->>PS: Webhook: invoice.paid
     PS->>API: PaymentPaid(checkout_group_id) [gRPC]
-    API->>DB: payments.status = paid,\norders.status = paid,\nkonversi stock_reservations → stock_movements
-    API->>API: Enqueue job email:send + notifikasi in-app
-    API-->>U: Notifikasi "Pembayaran berhasil"
+    API->>DB: payments.status = paid,\norders.status = paid,\nconvert stock_reservations → stock_movements
+    API->>API: Enqueue job email:send + in-app notification
+    API-->>U: "Payment successful" notification
 ```
 
-Jika tidak dibayar sampai `expires_at`, job `order:expire` di worker akan mengubah status menjadi `expired`, me-release semua `stock_reservations`, dan mengirim notifikasi.
+If not paid by `expires_at`, the `order:expire` job in the worker will change the status to `expired`, release all `stock_reservations`, and send a notification.
 
-### 2.3 State Machine Status Order
+### 2.3 Order Status State Machine
 
 ```mermaid
 stateDiagram-v2
     [*] --> pending_payment : checkout confirm
-    pending_payment --> paid : webhook Xendit (system)
-    pending_payment --> expired : job order-expire (system)
-    pending_payment --> cancelled : dibatalkan user
-    paid --> processed : supplier proses pesanan
-    paid --> cancelled : dibatalkan (refund via payment service)
-    processed --> shipped : supplier input resi /\njadwal armada sendiri
-    shipped --> delivered : tracking delivered /\nkonfirmasi armada
-    delivered --> completed : konfirmasi user /\njob auto-complete N hari (system)
+    pending_payment --> paid : Xendit webhook (system)
+    pending_payment --> expired : order-expire job (system)
+    pending_payment --> cancelled : cancelled by user
+    paid --> processed : supplier processes order
+    paid --> cancelled : cancelled (refund via payment service)
+    processed --> shipped : supplier enters tracking number /\nown fleet schedule
+    shipped --> delivered : tracking delivered /\nfleet confirmation
+    delivered --> completed : user confirmation /\nauto-complete job after N days (system)
     completed --> [*]
 
     note right of completed
         Trigger settlement:
-        credit saldo supplier
-        (subtotal + ongkir armada sendiri
-        - komisi platform)
+        credit supplier balance
+        (subtotal + own fleet shipping cost
+        - platform commission)
         via ledger_entries
     end note
 
     note right of cancelled
-        Jika sudah paid:
+        If already paid:
         refund via payment service
-        + release/kembalikan stok
+        + release/return stock
     end note
 ```
 
-Aturan aktor per transisi: `paid → processed → shipped` hanya supplier; `delivered → completed` oleh user atau system; `cancelled` mengikuti aturan di atas; admin dapat melakukan intervensi dengan pencatatan di `audit_logs`. Semua transisi dicatat di `order_status_histories`.
+Actor rules per transition: `paid → processed → shipped` supplier only; `delivered → completed` by user or system; `cancelled` follows the rules above; admin can intervene with logging in `audit_logs`. All transitions are recorded in `order_status_histories`.
 
-### 2.4 Reservasi Stok (lifecycle)
+### 2.4 Stock Reservation (lifecycle)
 
 ```mermaid
 flowchart LR
     A[Checkout confirm] --> B[Redis lock per variant]
-    B --> C{Stok cukup?}
-    C -- Tidak --> D[Tolak: ErrInsufficientStock]
-    C -- Ya --> E[INSERT stock_reservations\nstatus: active, expires_at = +2 jam]
-    E --> F{Hasil pembayaran}
-    F -- Dibayar --> G[status: converted\nINSERT stock_movements type out\nUPDATE variant.stock]
-    F -- Expired / dibatalkan --> H[status: released\nstok kembali tersedia]
+    B --> C{Stock sufficient?}
+    C -- No --> D[Reject: ErrInsufficientStock]
+    C -- Yes --> E[INSERT stock_reservations\nstatus: active, expires_at = +2 hours]
+    E --> F{Payment result}
+    F -- Paid --> G[status: converted\nINSERT stock_movements type out\nUPDATE variant.stock]
+    F -- Expired / cancelled --> H[status: released\nstock available again]
 ```
 
-### 2.5 Payout / Withdraw Supplier
+### 2.5 Supplier Payout / Withdraw
 
 ```mermaid
 sequenceDiagram
@@ -492,12 +492,12 @@ sequenceDiagram
     participant PS as Payment Service (gRPC)
     participant XD as Xendit
 
-    Note over API,DB: Order completed → system kredit saldo
+    Note over API,DB: Order completed → system credits balance
     API->>DB: ledger_entries: credit_order + debit_commission,\nupdate supplier_balances.available
 
     S->>API: POST /supplier/withdraws (amount, bank_account)
-    API->>DB: Validasi saldo cukup → INSERT withdraw_requests (requested),\nhold saldo (available → pending)
-    API-->>S: Request terkirim
+    API->>DB: Validate sufficient balance → INSERT withdraw_requests (requested),\nhold balance (available → pending)
+    API-->>S: Request submitted
 
     AD->>API: Approve withdraw
     API->>DB: status = approved → processing
@@ -506,34 +506,34 @@ sequenceDiagram
     XD-->>PS: Callback: disbursement completed
     PS->>API: DisbursementCompleted [gRPC]
     API->>DB: status = disbursed,\nledger_entries: debit_withdraw,\nrelease hold
-    API-->>S: Notifikasi dana dikirim
+    API-->>S: Notification: funds sent
 
-    alt Ditolak admin / gagal disbursement
-        API->>DB: status = rejected/failed,\nkembalikan hold ke available
-        API-->>S: Notifikasi + alasan
+    alt Rejected by admin / disbursement failed
+        API->>DB: status = rejected/failed,\nreturn hold to available
+        API-->>S: Notification + reason
     end
 ```
 
-### 2.6 Publikasi Produk oleh Supplier
+### 2.6 Product Publishing by Supplier
 
 ```mermaid
 flowchart TD
-    A[Supplier buat produk\nstatus: draft] --> B[Isi varian: harga, satuan,\nberat, dimensi, min order, stok]
-    B --> C[Upload gambar\n→ worker resize/compress]
-    C --> D{Validasi lengkap?\nmin 1 varian + 1 gambar\n+ berat terisi}
-    D -- Tidak --> B
-    D -- Ya --> E[Publish → status: active]
-    E --> F[search_vector terupdate\nmasuk katalog publik]
-    E -.-> G{Moderasi admin\njika dilaporkan}
-    G -- Melanggar --> H[status: banned\n+ notifikasi supplier]
+    A[Supplier creates product\nstatus: draft] --> B[Fill in variant: price, unit,\nweight, dimensions, min order, stock]
+    B --> C[Upload images\n→ worker resize/compress]
+    C --> D{Validation complete?\nmin 1 variant + 1 image\n+ weight filled}
+    D -- No --> B
+    D -- Yes --> E[Publish → status: active]
+    E --> F[search_vector updated\nenters public catalog]
+    E -.-> G{Admin moderation\nif reported}
+    G -- Violation --> H[status: banned\n+ supplier notification]
 ```
 
 ---
 
-## 3. Catatan Implementasi Terkait Diagram
+## 3. Implementation Notes Related to the Diagrams
 
-- **Snapshot di `order_items` dan `orders.shipping_address`** memastikan perubahan harga/alamat setelah checkout tidak mengubah data historis order.
-- **Satu `payments` per `checkout_group`** — Xendit menerima satu invoice untuk seluruh grup; pembagian dana ke supplier terjadi di level ledger, bukan di level pembayaran.
-- **`ledger_entries` append-only** dengan `balance_after` membuat saldo bisa direkonstruksi dan diaudit kapan pun; `supplier_balances` hanyalah materialized snapshot.
-- **`search_vector` (tsvector)** diisi via trigger atau saat update produk, di-index GIN untuk full-text search tanpa perlu Elasticsearch di fase awal.
-- Semua diagram ini konsisten dengan keputusan sebelumnya: `role_id` FK langsung di `users`, monolith + 2 service gRPC, tanpa voucher & unit converter.
+- **Snapshots in `order_items` and `orders.shipping_address`** ensure that price/address changes after checkout do not alter historical order data.
+- **One `payments` per `checkout_group`** — Xendit receives a single invoice for the entire group; fund distribution to suppliers happens at the ledger level, not at the payment level.
+- **`ledger_entries` append-only** with `balance_after` makes balances reconstructable and auditable at any time; `supplier_balances` is merely a materialized snapshot.
+- **`search_vector` (tsvector)** populated via trigger or on product update, GIN-indexed for full-text search without needing Elasticsearch in the early phase.
+- All these diagrams are consistent with prior decisions: `role_id` FK directly on `users`, monolith + 2 gRPC services, no voucher & unit converter.

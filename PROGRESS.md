@@ -1,20 +1,20 @@
-# PROGRESS — Marketplace Bahan Bangunan
+# PROGRESS — Building Materials Marketplace
 
-Checklist FR & AC per fase. Centang hanya setelah lolos verifikasi (build/test/manual). Lihat docs/requirements.md untuk detail lengkap tiap item.
+Checklist of FRs & ACs per phase. Check off only after verification passes (build/test/manual). See docs/requirements.md for full detail on each item.
 
 ---
 
-## FASE 1 — Fondasi
+## PHASE 1 — Foundation
 
 ### Functional Requirements
-- [ ] FR-1.1 Struktur project sesuai CLAUDE.md §3
+- [ ] FR-1.1 Project structure per CLAUDE.md §3
 - [ ] FR-1.2 Config (Viper + env override, fail-fast)
 - [ ] FR-1.3 Database (pgxpool + golang-migrate)
-- [ ] FR-1.4 Migrasi awal (roles, users)
-- [ ] FR-1.5 Seeder idempotent (roles + admin)
-- [ ] FR-1.6 Redis client + helper TTL
+- [ ] FR-1.4 Initial migration (roles, users)
+- [ ] FR-1.5 Idempotent seeder (roles + admin)
+- [ ] FR-1.6 Redis client + TTL helper
 - [ ] FR-1.7 Logger (zerolog JSON + request log middleware)
-- [ ] FR-1.8 Middleware dasar (recover, request ID, CORS, rate limit)
+- [ ] FR-1.8 Base middleware (recover, request ID, CORS, rate limit)
 - [ ] FR-1.9 Response & error (pkg/response, pkg/apperr)
 - [ ] FR-1.10 Health endpoint
 - [ ] FR-1.11 Worker skeleton (Asynq + system:heartbeat)
@@ -22,80 +22,80 @@ Checklist FR & AC per fase. Centang hanya setelah lolos verifikasi (build/test/m
 - [ ] FR-1.13 Graceful shutdown
 
 ### Acceptance Criteria
-- [ ] AC-1.a docker compose up sehat + migrate + seed + health 200
-- [ ] AC-1.b Redis mati → 503; panic → 500 rapi, proses hidup
-- [ ] AC-1.c lint & test hijau; migrate down/up bersih; seed idempotent
-- [ ] AC-1.d Rate limit 429 pada 70 req/menit
+- [ ] AC-1.a docker compose up healthy + migrate + seed + health 200
+- [ ] AC-1.b Redis down → 503; panic → clean 500, process stays alive
+- [ ] AC-1.c lint & test green; migrate down/up clean; seed idempotent
+- [ ] AC-1.d Rate limit 429 at 70 req/min
 
 ---
 
-## FASE 2 — Auth + RBAC
+## PHASE 2 — Auth + RBAC
 
 ### Functional Requirements
 - [ ] FR-2.1 Register
-- [ ] FR-2.2 Verifikasi email (OTP)
+- [ ] FR-2.2 Email verification (OTP)
 - [ ] FR-2.3 Login (JWT + refresh + brute force guard)
-- [ ] FR-2.4 Refresh (rotasi)
-- [ ] FR-2.5 Logout (blacklist jti)
-- [ ] FR-2.6 Reset password
-- [ ] FR-2.7 Middleware Auth
-- [ ] FR-2.8 Middleware RequireRole
-- [ ] FR-2.9 Profil dasar (/user/me)
+- [ ] FR-2.4 Refresh (rotation)
+- [ ] FR-2.5 Logout (jti blacklist)
+- [ ] FR-2.6 Password reset
+- [ ] FR-2.7 Auth middleware
+- [ ] FR-2.8 RequireRole middleware
+- [ ] FR-2.9 Basic profile (/user/me)
 - [ ] FR-2.10 Notification stub (log-only)
 
 ### Acceptance Criteria
-- [ ] AC-2.a Happy path register→verify→login→me→refresh→logout→token lama ditolak
-- [ ] AC-2.b RBAC 403/401 sesuai role
-- [ ] AC-2.c Refresh token reuse ditolak; reset password invalidasi sesi lama
-- [ ] AC-2.d Unit test coverage kasus auth
+- [ ] AC-2.a Happy path register→verify→login→me→refresh→logout→old token rejected
+- [ ] AC-2.b RBAC 403/401 per role
+- [ ] AC-2.c Refresh token reuse rejected; password reset invalidates old sessions
+- [ ] AC-2.d Unit test coverage for auth cases
 
 ---
 
-## FASE 3 — Supplier Onboarding
+## PHASE 3 — Supplier Onboarding
 
 ### Functional Requirements
 - [ ] FR-3.1 Media module (upload + resize)
-- [ ] FR-3.2 Profil toko
-- [ ] FR-3.3 Dokumen KYC
-- [ ] FR-3.4 Rekening bank
-- [ ] FR-3.5 Submit pengajuan
-- [ ] FR-3.6 Review admin (approve/reject/suspend)
+- [ ] FR-3.2 Store profile
+- [ ] FR-3.3 KYC documents
+- [ ] FR-3.4 Bank account
+- [ ] FR-3.5 Submit application
+- [ ] FR-3.6 Admin review (approve/reject/suspend)
 - [ ] FR-3.7 Audit log
-- [ ] FR-3.8 Notifikasi
-- [ ] FR-3.9 Guard RequireApprovedSupplier
+- [ ] FR-3.8 Notification
+- [ ] FR-3.9 RequireApprovedSupplier guard
 
 ### Acceptance Criteria
-- [ ] AC-3.a Alur penuh profil→dokumen→submit→reject→perbaiki→approve
-- [ ] AC-3.b Validasi file (tipe/ukuran) + resize worker
-- [ ] AC-3.c Submit tanpa NIB → 422; endpoint berjualan sebelum approved → 403
-- [ ] AC-3.d Migrasi baru up/down bersih
+- [ ] AC-3.a Full flow: profile→documents→submit→reject→fix→approve
+- [ ] AC-3.b File validation (type/size) + resize worker
+- [ ] AC-3.c Submit without NIB → 422; selling endpoint before approved → 403
+- [ ] AC-3.d New migration up/down clean
 
 ---
 
-## FASE 4 — Katalog
+## PHASE 4 — Catalog
 
 ### Functional Requirements
-- [ ] FR-4.1 Kategori (admin CRUD + publik tree + cache)
-- [ ] FR-4.2 Produk (supplier CRUD)
-- [ ] FR-4.3 Varian
-- [ ] FR-4.4 Gambar produk
-- [ ] FR-4.5 Stok & movements
-- [ ] FR-4.6 Katalog publik (search + filter + cursor)
-- [ ] FR-4.7 Detail publik (cache invalidate)
+- [ ] FR-4.1 Category (admin CRUD + public tree + cache)
+- [ ] FR-4.2 Product (supplier CRUD)
+- [ ] FR-4.3 Variant
+- [ ] FR-4.4 Product images
+- [ ] FR-4.5 Stock & movements
+- [ ] FR-4.6 Public catalog (search + filter + cursor)
+- [ ] FR-4.7 Public detail (cache invalidate)
 - [ ] FR-4.8 search_vector trigger + GIN index
-- [ ] FR-4.9 Toko publik
+- [ ] FR-4.9 Public store page
 - [ ] FR-4.10 Low-stock job
 
 ### Acceptance Criteria
-- [ ] AC-4.a Produk publish muncul & ditemukan di search
-- [ ] AC-4.b Validasi publish (gambar, weight_gram, SKU unik)
-- [ ] AC-4.c Stock adjustment (409 saat negatif, movements benar)
-- [ ] AC-4.d Supplier suspended tidak muncul; cache invalidate cepat
-- [ ] AC-4.e Integration test search dengan testcontainers
+- [ ] AC-4.a Published product appears & is found in search
+- [ ] AC-4.b Publish validation (image, weight_gram, unique SKU)
+- [ ] AC-4.c Stock adjustment (409 on negative, correct movements)
+- [ ] AC-4.d Suspended supplier hidden; cache invalidates fast
+- [ ] AC-4.e Search integration test with testcontainers
 
 ---
 
-## FASE 5 — Transaksi Inti
+## PHASE 5 — Core Transactions
 
 ### Functional Requirements
 - [ ] FR-5.1 Cart
@@ -103,23 +103,23 @@ Checklist FR & AC per fase. Centang hanya setelah lolos verifikasi (build/test/m
 - [ ] FR-5.3 Checkout preview
 - [ ] FR-5.4 Checkout confirm (lock + TX + reservation)
 - [ ] FR-5.5 Payment-service (services/payment, gRPC, Xendit)
-- [ ] FR-5.6 Callback paid (idempotent)
-- [ ] FR-5.7 Job order:expire
-- [ ] FR-5.8 State machine order
+- [ ] FR-5.6 Paid callback (idempotent)
+- [ ] FR-5.7 order:expire job
+- [ ] FR-5.8 Order state machine
 - [ ] FR-5.9 Shipment
-- [ ] FR-5.10 Listing order (user/supplier/admin)
-- [ ] FR-5.11 Job order:autocomplete
+- [ ] FR-5.10 Order listing (user/supplier/admin)
+- [ ] FR-5.11 order:autocomplete job
 
 ### Acceptance Criteria
 - [ ] AC-5.a E2E multi-supplier checkout→paid→ship→delivered→completed
-- [ ] AC-5.b Concurrent confirm race → tepat satu berhasil
-- [ ] AC-5.c Job expire release reservasi; callback paid duplikat idempotent
-- [ ] AC-5.d Cancel saat paid → refund + stok kembali; transisi ilegal 409
-- [ ] AC-5.e Payment-service proses terpisah; monolith degraded bila mati
+- [ ] AC-5.b Concurrent confirm race → exactly one succeeds
+- [ ] AC-5.c Expire job releases reservation; duplicate paid callback idempotent
+- [ ] AC-5.d Cancel while paid → refund + stock restored; illegal transition 409
+- [ ] AC-5.e Payment-service runs as separate process; monolith degrades when it's down
 
 ---
 
-## FASE 6 — Pasca-transaksi
+## PHASE 6 — Post-transaction
 
 ### Functional Requirements
 - [ ] FR-6.1 Settlement on complete (ledger + balance)
@@ -127,37 +127,37 @@ Checklist FR & AC per fase. Centang hanya setelah lolos verifikasi (build/test/m
 - [ ] FR-6.3 Withdraw
 - [ ] FR-6.4 Approval & disbursement
 - [ ] FR-6.5 Review
-- [ ] FR-6.6 Notifikasi lengkap (notification-service asli)
-- [ ] FR-6.7 Preferensi notifikasi ringan
+- [ ] FR-6.6 Full notifications (real notification-service)
+- [ ] FR-6.7 Lightweight notification preferences
 
 ### Acceptance Criteria
-- [ ] AC-6.a Settlement ledger benar; idempotent
-- [ ] AC-6.b Withdraw lifecycle + Σ ledger = balance; UPDATE ledger ditolak DB
-- [ ] AC-6.c Review guard (403/409) + rating agregat benar
-- [ ] AC-6.d Notification-service mati → tidak gagalkan transaksi (retry)
+- [ ] AC-6.a Correct settlement ledger; idempotent
+- [ ] AC-6.b Withdraw lifecycle + Σ ledger = balance; DB rejects ledger UPDATE
+- [ ] AC-6.c Review guard (403/409) + correct aggregate rating
+- [ ] AC-6.d Notification-service down → doesn't fail the transaction (retry)
 
 ---
 
-## FASE 7 — Pelengkap & Hardening
+## PHASE 7 — Supplementary & Hardening
 
 ### Functional Requirements
 - [ ] FR-7.1 Wishlist
 - [ ] FR-7.2 Banner
-- [ ] FR-7.3 Report supplier
-- [ ] FR-7.4 Report admin
-- [ ] FR-7.5 Hardening keamanan
-- [ ] FR-7.6 Observabilitas (metrics + Grafana)
-- [ ] FR-7.7 Kualitas (coverage, CI, seed-demo)
-- [ ] FR-7.8 Dokumentasi (OpenAPI, README, PROGRESS.md final)
+- [ ] FR-7.3 Supplier report
+- [ ] FR-7.4 Admin report
+- [ ] FR-7.5 Security hardening
+- [ ] FR-7.6 Observability (metrics + Grafana)
+- [ ] FR-7.7 Quality (coverage, CI, seed-demo)
+- [ ] FR-7.8 Documentation (OpenAPI, README, final PROGRESS.md)
 
 ### Acceptance Criteria
-- [ ] AC-7.a CI hijau + seed-demo + 3 role demo
+- [ ] AC-7.a CI green + seed-demo + 3-role demo
 - [ ] AC-7.b Metrics + Grafana + load test p95 < 300ms
-- [ ] AC-7.c govulncheck bersih; callback internal tanpa secret → 401
+- [ ] AC-7.c govulncheck clean; internal callback without secret → 401
 - [ ] AC-7.d OpenAPI valid & 100% route coverage
 
 ---
 
-## Keputusan
+## Decisions
 
-Catatan keputusan saat menemui ambiguitas (diisi berjalannya waktu, per fase).
+Notes on decisions made when ambiguity was encountered (filled in as work progresses, per phase).

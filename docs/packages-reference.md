@@ -1,31 +1,31 @@
-# Package Reference — Marketplace Bahan Bangunan
+# Package Reference — Building Materials Marketplace
 
-Referensi lokal API & pola pemakaian setiap dependency project. **AI/developer: gunakan dokumen ini sebagai sumber kebenaran pertama sebelum mencari dokumentasi eksternal.** Jika ada API yang tidak tercakup di sini, baru cek dokumentasi resmi — lalu tambahkan temuannya ke dokumen ini.
+Local reference for the API & usage patterns of each project dependency. **AI/developer: use this document as the first source of truth before searching external documentation.** If an API isn't covered here, check the official docs — then add the findings to this document.
 
-Aturan umum: pin semua versi di go.mod; jangan upgrade major version tanpa persetujuan.
+General rule: pin all versions in go.mod; do not upgrade major versions without approval.
 
 ---
 
 ## 1. Fiber v3 (`github.com/gofiber/fiber/v3`) — HTTP framework
 
-**Status: v3 sudah rilis STABIL (v3.0.0+, terbaru v3.1.x). Wajib Go 1.25+.**
+**Status: v3 is STABLE (v3.0.0+, latest v3.1.x). Requires Go 1.25+.**
 
-Perubahan terpenting dari v2 (jangan pakai pola v2):
+Most important changes from v2 (do not use v2 patterns):
 
 ```go
-// Handler: fiber.Ctx adalah INTERFACE, tanpa pointer
-app.Get("/products/:id", func(c fiber.Ctx) error {   // BUKAN *fiber.Ctx
+// Handler: fiber.Ctx is an INTERFACE, no pointer
+app.Get("/products/:id", func(c fiber.Ctx) error {   // NOT *fiber.Ctx
     return c.JSON(fiber.Map{"ok": true})
 })
 ```
 
-**fiber.Ctx memenuhi context.Context** — teruskan langsung ke pgx/redis/gRPC, tanpa `c.UserContext()`:
+**fiber.Ctx satisfies context.Context** — pass it directly to pgx/redis/gRPC, no `c.UserContext()` needed:
 
 ```go
-rows, err := pool.Query(c, "SELECT ...")   // c langsung sebagai ctx
+rows, err := pool.Query(c, "SELECT ...")   // c used directly as ctx
 ```
 
-**Unified binding** (pengganti BodyParser/QueryParser/ParamsParser v2):
+**Unified binding** (replaces BodyParser/QueryParser/ParamsParser from v2):
 
 ```go
 type CreateProductReq struct {
@@ -34,7 +34,7 @@ type CreateProductReq struct {
     Name  string `json:"name" validate:"required,min=3"`
 }
 var req CreateProductReq
-if err := c.Bind().Body(&req); err != nil { ... }   // juga: .Query(&req), .URI(&req), .Header(&req)
+if err := c.Bind().Body(&req); err != nil { ... }   // also: .Query(&req), .URI(&req), .Header(&req)
 ```
 
 Setup, route group, middleware:
@@ -44,24 +44,24 @@ app := fiber.New(fiber.Config{AppName: "marketplace-api", BodyLimit: 2 << 20})
 v1 := app.Group("/api/v1")
 admin := v1.Group("/admin", mw.Auth(), mw.RequireRole("admin"))
 
-// Middleware signature sama dengan handler:
+// Middleware signature same as handler:
 func RequestID() fiber.Handler {
     return func(c fiber.Ctx) error {
         // c.Get(header), c.Set(header), c.Locals(key, val), c.Next()
         return c.Next()
     }
 }
-app.Listen(":8080", fiber.ListenConfig{DisableStartupMessage: false}) // Listen menyatu dengan config
+app.Listen(":8080", fiber.ListenConfig{DisableStartupMessage: false}) // Listen merged with config
 ```
 
-Gotchas v3:
-- `app.Static()` DIHAPUS → gunakan middleware `static`. `app.Mount()` dihapus → sub-app via `app.Use()`.
-- Prefix middleware lebih ketat: `app.Use("/api", mw)` hanya match `/api` dan `/api/...` (tidak `/apiv1`).
+v3 gotchas:
+- `app.Static()` REMOVED → use the `static` middleware. `app.Mount()` removed → sub-app via `app.Use()`.
+- Prefix middleware is stricter: `app.Use("/api", mw)` only matches `/api` and `/api/...` (not `/apiv1`).
 - Logger middleware: field `Output` → `Stream`.
-- `fiber.Ctx` TIDAK thread-safe & di-reuse antar request — jangan simpan referensi c/hasil `c.Params()` keluar dari handler; copy nilainya.
-- Helper generic tersedia (mis. `fiber.Query[int](c, "page", 1)`, `fiber.Params[int](c, "id")`) menggantikan QueryInt/ParamsInt.
-- GET otomatis mendaftarkan HEAD.
-- Ambil claims auth dari `c.Locals("user_id")` yang di-set middleware sendiri (lihat pkg/jwt) — jangan pakai fiber contrib jwt agar kontrol penuh blacklist.
+- `fiber.Ctx` is NOT thread-safe & is reused across requests — don't keep a reference to c or the result of `c.Params()` outside the handler; copy the value.
+- Generic helpers available (e.g. `fiber.Query[int](c, "page", 1)`, `fiber.Params[int](c, "id")`) replacing QueryInt/ParamsInt.
+- GET automatically registers HEAD.
+- Get auth claims from `c.Locals("user_id")`, set by our own middleware (see pkg/jwt) — don't use fiber contrib jwt so we keep full control of the blacklist.
 
 ---
 
@@ -81,28 +81,28 @@ Query & scan:
 
 ```go
 row := pool.QueryRow(ctx, `SELECT id, name FROM users WHERE id=$1`, id)
-err := row.Scan(&u.ID, &u.Name)             // pgx.ErrNoRows jika kosong → map ke domain errs.ErrNotFound
+err := row.Scan(&u.ID, &u.Name)             // pgx.ErrNoRows if empty → map to domain errs.ErrNotFound
 
 rows, err := pool.Query(ctx, `SELECT ...`)
 defer rows.Close()
-users, err := pgx.CollectRows(rows, pgx.RowToStructByName[User])  // helper scan ke struct (tag db:"col")
+users, err := pgx.CollectRows(rows, pgx.RowToStructByName[User])  // helper to scan into struct (tag db:"col")
 ```
 
-Transaksi (pola wajib untuk checkout/settlement):
+Transactions (mandatory pattern for checkout/settlement):
 
 ```go
 tx, err := pool.Begin(ctx)
 if err != nil { return err }
-defer tx.Rollback(ctx)                       // no-op jika sudah commit
+defer tx.Rollback(ctx)                       // no-op if already committed
 // ... tx.Exec / tx.QueryRow ...
 return tx.Commit(ctx)
 ```
 
-Gotchas: placeholder `$1..$n` (bukan `?`); numeric → scan ke `pgtype.Numeric` atau int64 (kita pakai int64 rupiah); UUID scan langsung ke `uuid.UUID` (pgx v5 support native); error unik constraint: cek `pgconn.PgError` code `23505` → map ke ErrConflict.
+Gotchas: placeholders `$1..$n` (not `?`); numeric → scan into `pgtype.Numeric` or int64 (we use int64 rupiah); UUID scans directly into `uuid.UUID` (pgx v5 has native support); unique constraint errors: check `pgconn.PgError` code `23505` → map to ErrConflict.
 
-## 3. sqlc (`github.com/sqlc-dev/sqlc`) — generator query type-safe
+## 3. sqlc (`github.com/sqlc-dev/sqlc`) — type-safe query generator
 
-`sqlc.yaml` di root; query SQL di `internal/repository/postgres/queries/*.sql`; output package `sqlcgen`.
+`sqlc.yaml` at root; SQL queries in `internal/repository/postgres/queries/*.sql`; output package `sqlcgen`.
 
 ```yaml
 version: "2"
@@ -118,7 +118,7 @@ sql:
         emit_pointers_for_null_types: true
 ```
 
-Anotasi query: `-- name: GetUserByEmail :one`, `:many`, `:exec`, `:execrows`. Regenerate: `make sqlc` (`sqlc generate`). Repository implementasi membungkus sqlcgen + mapping ke domain entity. Query dinamis kompleks (filter katalog) boleh hand-written pgx di luar sqlc.
+Query annotations: `-- name: GetUserByEmail :one`, `:many`, `:exec`, `:execrows`. Regenerate: `make sqlc` (`sqlc generate`). Repository implementations wrap sqlcgen + map to domain entities. Complex dynamic queries (catalog filters) may be hand-written pgx outside sqlc.
 
 ## 4. go-redis v9 (`github.com/redis/go-redis/v9`)
 
@@ -127,13 +127,13 @@ rdb := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.
 err := rdb.Ping(ctx).Err()
 
 rdb.Set(ctx, key, val, 10*time.Minute)
-val, err := rdb.Get(ctx, key).Result()       // redis.Nil jika tidak ada → JANGAN dianggap error sistem
+val, err := rdb.Get(ctx, key).Result()       // redis.Nil if missing → DO NOT treat as a system error
 rdb.Del(ctx, key)
 ok, err := rdb.SetNX(ctx, "stock:"+id, 1, 10*time.Second).Result()  // distributed lock (FR-5.4)
 rdb.Incr(ctx, key); rdb.Expire(ctx, key, ttl)                        // rate limit / brute force counter
 ```
 
-Gotchas: selalu bedakan `err == redis.Nil` vs error koneksi; lock release pakai Lua compare-and-del (simpan token acak sebagai value, hapus hanya jika token cocok) agar tidak menghapus lock milik proses lain.
+Gotchas: always distinguish `err == redis.Nil` from a connection error; release locks using Lua compare-and-del (store a random token as the value, delete only if the token matches) so we don't delete another process's lock.
 
 ## 5. Asynq (`github.com/hibiken/asynq`) — background jobs (Redis-backed)
 
@@ -143,7 +143,7 @@ client := asynq.NewClient(asynq.RedisClientOpt{Addr: addr})
 payload, _ := json.Marshal(EmailSendPayload{...})
 task := asynq.NewTask("email:send", payload)
 info, err := client.Enqueue(task, asynq.MaxRetry(5), asynq.Queue("default"),
-    asynq.ProcessIn(2*time.Hour))            // delay — dipakai order:expire alternatif
+    asynq.ProcessIn(2*time.Hour))            // delay — used as an alternative for order:expire
 
 // Worker (cmd/worker)
 srv := asynq.NewServer(asynq.RedisClientOpt{Addr: addr},
@@ -152,13 +152,13 @@ mux := asynq.NewServeMux()
 mux.HandleFunc("email:send", handleEmailSend)   // func(ctx context.Context, t *asynq.Task) error
 srv.Run(mux)
 
-// Scheduler (cron) — proses sama dengan worker
+// Scheduler (cron) — same process as the worker
 sched := asynq.NewScheduler(asynq.RedisClientOpt{Addr: addr}, nil)
-sched.Register("* * * * *", asynq.NewTask("order:expire", nil))       // tiap menit
+sched.Register("* * * * *", asynq.NewTask("order:expire", nil))       // every minute
 sched.Register("0 8 * * *", asynq.NewTask("notification:lowstock", nil))
 ```
 
-Gotchas: handler return error → retry otomatis (exponential backoff) sampai MaxRetry → masuk archived; return `asynq.SkipRetry` untuk gagal permanen. Handler WAJIB idempotent (NFR-3). Task type string konstanta di `infra/queue/tasks.go`.
+Gotchas: handler returning an error → automatic retry (exponential backoff) up to MaxRetry → then archived; return `asynq.SkipRetry` for permanent failures. Handlers MUST be idempotent (NFR-3). Task type string constants live in `infra/queue/tasks.go`.
 
 ## 6. zerolog (`github.com/rs/zerolog`)
 
@@ -166,10 +166,10 @@ Gotchas: handler return error → retry otomatis (exponential backoff) sampai Ma
 log := zerolog.New(os.Stdout).With().Timestamp().Str("service", "api").Logger()
 log.Info().Str("request_id", rid).Int("status", 200).Dur("latency", d).Msg("request")
 log.Error().Err(err).Str("order_id", id).Msg("checkout failed")
-zerolog.SetGlobalLevel(zerolog.InfoLevel)    // dari config; DebugLevel di dev
+zerolog.SetGlobalLevel(zerolog.InfoLevel)    // from config; DebugLevel in dev
 ```
 
-Gotchas: jangan `Msgf` dengan data user mentah; mask field sensitif (NFR-6). Level parse: `zerolog.ParseLevel(cfg.Log.Level)`.
+Gotchas: don't use `Msgf` with raw user data; mask sensitive fields (NFR-6). Level parsing: `zerolog.ParseLevel(cfg.Log.Level)`.
 
 ## 7. Viper (`github.com/spf13/viper`)
 
@@ -178,17 +178,17 @@ v := viper.New()
 v.SetConfigFile("config/config.yaml")
 v.SetEnvPrefix("APP")
 v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-v.AutomaticEnv()                              // APP_DB_DSN override db.dsn
-_ = v.ReadInConfig()                          // yaml opsional; env cukup
+v.AutomaticEnv()                              // APP_DB_DSN overrides db.dsn
+_ = v.ReadInConfig()                          // yaml optional; env is enough
 var cfg Config
 err := v.Unmarshal(&cfg)                      // struct tag `mapstructure:"db"`
 ```
 
-Gotcha: AutomaticEnv + Unmarshal tidak selalu memetakan env yang tidak ada di yaml — daftarkan default `v.SetDefault("db.max_conns", 20)` untuk setiap key agar env binding konsisten.
+Gotcha: AutomaticEnv + Unmarshal doesn't always map env vars that aren't in the yaml — register a default `v.SetDefault("db.max_conns", 20)` for every key so env binding stays consistent.
 
 ## 8. golang-migrate (`github.com/golang-migrate/migrate/v4`)
 
-File: `migrations/000001_create_roles.up.sql` + `.down.sql` (urutan 6 digit). Jalankan via CLI di Makefile:
+Files: `migrations/000001_create_roles.up.sql` + `.down.sql` (6-digit sequence). Run via CLI in the Makefile:
 
 ```
 migrate -path migrations -database "$(DB_DSN)" up
@@ -196,7 +196,7 @@ migrate -path migrations -database "$(DB_DSN)" down 1
 migrate create -ext sql -dir migrations -seq create_products
 ```
 
-Programatik (cmd/migrate) pakai `migrate.New("file://migrations", dsn)` → `.Up()`. Gotchas: `migrate.ErrNoChange` bukan error fatal; dirty state (gagal di tengah) → perbaiki manual + `force <version>`; JANGAN edit file migrasi yang sudah pernah dijalankan di branch manapun.
+Programmatic (cmd/migrate) use `migrate.New("file://migrations", dsn)` → `.Up()`. Gotchas: `migrate.ErrNoChange` is not a fatal error; dirty state (failed mid-run) → fix manually + `force <version>`; DO NOT edit a migration file that has already run on any branch.
 
 ## 9. validator v10 (`github.com/go-playground/validator/v10`)
 
@@ -204,15 +204,15 @@ Programatik (cmd/migrate) pakai `migrate.New("file://migrations", dsn)` → `.Up
 validate := validator.New(validator.WithRequiredStructEnabled())
 err := validate.Struct(req)
 if errs, ok := err.(validator.ValidationErrors); ok {
-    for _, fe := range errs { /* fe.Field(), fe.Tag(), fe.Param() → map ke pesan Indonesia */ }
+    for _, fe := range errs { /* fe.Field(), fe.Tag(), fe.Param() → map to Indonesian message */ }
 }
-// Custom rule (phone Indonesia):
+// Custom rule (Indonesian phone number):
 validate.RegisterValidation("phone_id", func(fl validator.FieldLevel) bool {
     return regexp.MustCompile(`^(\+62|62|0)8[0-9]{7,12}$`).MatchString(fl.Field().String())
 })
 ```
 
-Tag yang sering dipakai: `required`, `email`, `min=8`, `max=100`, `gt=0`, `gte=1`, `oneof=sak batang m3 dus pcs lembar kg roll set`, `uuid`, `dive` (validasi slice element). Satu instance validator global (thread-safe), simpan di pkg/validator.
+Commonly used tags: `required`, `email`, `min=8`, `max=100`, `gt=0`, `gte=1`, `oneof=sak batang m3 dus pcs lembar kg roll set`, `uuid`, `dive` (validate slice elements). One global validator instance (thread-safe), stored in pkg/validator.
 
 ## 10. golang-jwt v5 (`github.com/golang-jwt/jwt/v5`)
 
@@ -228,21 +228,21 @@ parsed, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
     if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok { return nil, jwt.ErrSignatureInvalid }
     return []byte(secret), nil
 })
-// v5: expiry dicek otomatis saat Parse; cek errors.Is(err, jwt.ErrTokenExpired) untuk pesan spesifik
+// v5: expiry checked automatically during Parse; check errors.Is(err, jwt.ErrTokenExpired) for a specific message
 claims, ok := parsed.Claims.(jwt.MapClaims)
 ```
 
-Gotcha v5: API error berubah dari v4 — gunakan `errors.Is` dengan sentinel v5 (`jwt.ErrTokenExpired`, `jwt.ErrTokenMalformed`). Refresh token BUKAN JWT (opaque random 32 byte hex di Redis).
+v5 gotcha: error API changed from v4 — use `errors.Is` with v5 sentinels (`jwt.ErrTokenExpired`, `jwt.ErrTokenMalformed`). Refresh token is NOT a JWT (opaque random 32-byte hex in Redis).
 
 ## 11. google/uuid (`github.com/google/uuid`) — UUID v7
 
 ```go
-id, err := uuid.NewV7()      // time-ordered, dipakai semua PK
+id, err := uuid.NewV7()      // time-ordered, used for all PKs
 id := uuid.Must(uuid.NewV7())
 parsed, err := uuid.Parse(str)
 ```
 
-Gotcha: `uuid.New()` = v4 (random) — JANGAN dipakai untuk PK (kita standar v7 agar index B-tree efisien). DB kolom `uuid`, default dari aplikasi (bukan DB).
+Gotcha: `uuid.New()` = v4 (random) — DO NOT use for PKs (our standard is v7 for efficient B-tree indexing). DB column type `uuid`, default generated by the application (not the DB).
 
 ## 12. gRPC + protobuf (`google.golang.org/grpc`, `google.golang.org/protobuf`)
 
@@ -265,7 +265,7 @@ res, err := client.CreateInvoice(ctx, &paymentv1.CreateInvoiceRequest{...})
 st, _ := status.FromError(err)               // st.Code(): codes.Unavailable → ErrPaymentUnavailable
 ```
 
-Server (services/payment): implement interface `paymentv1.UnimplementedPaymentServiceServer`, daftarkan ke `grpc.NewServer()`, `lis, _ := net.Listen("tcp", ":50051")`. Gotchas: `grpc.NewClient` (pengganti DialContext yang deprecated); selalu timeout per call; proto field opsional pakai wrapper/optional keyword.
+Server (services/payment): implement the `paymentv1.UnimplementedPaymentServiceServer` interface, register it with `grpc.NewServer()`, `lis, _ := net.Listen("tcp", ":50051")`. Gotchas: `grpc.NewClient` (replaces the deprecated DialContext); always set a timeout per call; optional proto fields use the wrapper/optional keyword.
 
 ## 13. AWS SDK v2 S3 (`github.com/aws/aws-sdk-go-v2`) — R2/MinIO
 
@@ -274,11 +274,11 @@ cfg, _ := config.LoadDefaultConfig(ctx,
     config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, "")))
 client := s3.NewFromConfig(cfg, func(o *s3.Options) {
     o.BaseEndpoint = aws.String(endpoint)     // MinIO: http://localhost:9000 | R2: https://<acct>.r2.cloudflarestorage.com
-    o.UsePathStyle = true                     // WAJIB untuk MinIO
-    o.Region = "auto"                         // R2 pakai "auto"
+    o.UsePathStyle = true                     // REQUIRED for MinIO
+    o.Region = "auto"                         // R2 uses "auto"
 })
 _, err = client.PutObject(ctx, &s3.PutObjectInput{Bucket: &b, Key: &k, Body: r, ContentType: &ct})
-// Presigned URL (download dokumen KYC / export CSV):
+// Presigned URL (KYC document download / CSV export):
 ps := s3.NewPresignClient(client)
 req, err := ps.PresignGetObject(ctx, &s3.GetObjectInput{Bucket: &b, Key: &k},
     s3.WithPresignExpires(24*time.Hour))
@@ -289,24 +289,24 @@ req, err := ps.PresignGetObject(ctx, &s3.GetObjectInput{Bucket: &b, Key: &k},
 
 ```go
 // testify
-assert.Equal(t, want, got); require.NoError(t, err)   // require menghentikan test, assert lanjut
+assert.Equal(t, want, got); require.NoError(t, err)   // require stops the test, assert continues
 
 // mockery v2 (.mockery.yaml: packages internal/domain/... all interfaces → test/mocks)
 repo := mocks.NewUserRepository(t)
 repo.EXPECT().FindByEmail(mock.Anything, "a@b.c").Return(nil, errs.ErrNotFound).Once()
 
-// testcontainers (integration test repository)
+// testcontainers (repository integration tests)
 pgC, err := postgres.Run(ctx, "postgres:16-alpine",
     postgres.WithDatabase("test"), postgres.WithUsername("test"), postgres.WithPassword("test"),
     testcontainers.WithWaitStrategy(wait.ForLog("ready to accept connections").WithOccurrence(2)))
 dsn, _ := pgC.ConnectionString(ctx, "sslmode=disable")
-// jalankan migrasi ke dsn, lalu test repository sungguhan
+// run migrations against dsn, then test against the real repository
 ```
 
-Gotcha: mockery generate ulang setiap interface domain berubah (`make mocks`); testcontainers butuh Docker socket — di CI GitHub Actions berjalan native.
+Gotcha: regenerate mockery whenever a domain interface changes (`make mocks`); testcontainers needs the Docker socket — runs natively in CI on GitHub Actions.
 
 ---
 
-## Kebijakan Update Dokumen Ini
+## Policy for Updating This Document
 
-Saat implementasi menemukan API yang berbeda dari tercatat di sini (versi berubah), perbaiki dokumen ini dalam commit yang sama dengan kode (`docs(packages): correct X API for vY.Z`). Dokumen ini adalah cache pengetahuan — keakuratannya tanggung jawab bersama.
+When implementation reveals an API that differs from what's recorded here (version change), fix this document in the same commit as the code (`docs(packages): correct X API for vY.Z`). This document is a knowledge cache — its accuracy is a shared responsibility.

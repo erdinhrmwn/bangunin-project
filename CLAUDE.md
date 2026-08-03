@@ -1,124 +1,124 @@
-# CLAUDE.md — Marketplace Bahan Bangunan ("Bangunin" / [nama final TBD])
+# CLAUDE.md — Building Materials Marketplace ("Bangunin" / [final name TBD])
 
-Dokumen ini adalah konteks utama project. Baca dan patuhi seluruh keputusan di sini sebelum menulis kode apa pun. Jangan mengubah keputusan arsitektur tanpa konfirmasi eksplisit dari saya.
+This document is the project's primary context. Read and follow every decision here before writing any code. Do not change architectural decisions without my explicit confirmation.
 
-## 1. Deskripsi Project
+## 1. Project Description
 
-Marketplace vertikal khusus bahan bangunan & material konstruksi Indonesia. Supplier (distributor/toko bangunan) menjual ke kontraktor, pemborong, dan pemilik proyek. Karakteristik unik: AOV tinggi (Rp1–5 jt), material berat (ongkir berbasis berat aktual vs volumetrik), satuan jual khas (sak, batang, m³, dus), pembayaran escrow, split order per supplier.
+Vertical marketplace specialized in building materials & construction supplies for Indonesia. Suppliers (distributors/hardware stores) sell to contractors, builders, and project owners. Unique characteristics: high AOV (Rp1–5M), heavy materials (shipping cost based on actual weight vs volumetric), material-specific units (sack, rod/bar, m³, box), escrow payment, order split per supplier.
 
-## 2. Tech Stack (FINAL — jangan diganti)
+## 2. Tech Stack (FINAL — do not change)
 
-- **Go 1.25+** (syarat minimum Fiber v3), HTTP framework **Fiber v3** (SUDAH RILIS STABIL v3.0+; handler `func(c fiber.Ctx) error` tanpa pointer, binding `c.Bind().Body()` — lihat docs/packages-reference.md §1; isolasi semua kode Fiber di `internal/delivery/http`)
-- **PostgreSQL 16** (pgx + sqlc), **Redis 7** (cache, session, rate limit, stock lock, backend Asynq)
-- **Asynq** untuk background jobs + scheduler
-- **gRPC** ke 2 service eksternal terpisah: payment-service (Xendit) & notification-service (Mailjet). Kontrak di `proto/`
-- **RajaOngkir (Komerce)** via HTTP client untuk ongkir & tracking
-- Object storage: **Cloudflare R2** (S3-compatible; dev pakai MinIO)
+- **Go 1.25+** (Fiber v3 minimum requirement), HTTP framework **Fiber v3** (STABLE RELEASE v3.0+; handler `func(c fiber.Ctx) error` without pointer, binding via `c.Bind().Body()` — see docs/packages-reference.md §1; isolate all Fiber code in `internal/delivery/http`)
+- **PostgreSQL 16** (pgx + sqlc), **Redis 7** (cache, session, rate limit, stock lock, Asynq backend)
+- **Asynq** for background jobs + scheduler
+- **gRPC** to 2 separate external services: payment-service (Xendit) & notification-service (Mailjet). Contracts in `proto/`
+- **RajaOngkir (Komerce)** via HTTP client for shipping cost & tracking
+- Object storage: **Cloudflare R2** (S3-compatible; use MinIO for dev)
 - zerolog, Viper, golang-migrate, go-playground/validator, golang-jwt/jwt v5, testify + mockery + testcontainers-go, golangci-lint
-- Docker + docker-compose untuk lokal (postgres, redis, minio, api, worker)
+- Docker + docker-compose for local dev (postgres, redis, minio, api, worker)
 
-## 3. Arsitektur & Struktur Direktori
+## 3. Architecture & Directory Structure
 
-Clean Architecture, dependency mengalir ke dalam: `delivery → usecase → domain ← repository/infra`.
+Clean Architecture, dependencies flow inward: `delivery → usecase → domain ← repository/infra`.
 
 ```
 cmd/{api,worker,migrate}/main.go
 config/
 internal/
-  domain/{entity, repository(interface), service(interface eksternal), errs}
-  usecase/            # FLAT — satu package `usecase`, 1 file per module: auth_usecase.go, user_usecase.go, supplier_usecase.go, admin_usecase.go, category_usecase.go, product_usecase.go, inventory_usecase.go, catalog_usecase.go, cart_usecase.go, checkout_usecase.go, order_usecase.go, shipping_usecase.go, review_usecase.go, wishlist_usecase.go, payout_usecase.go, notification_usecase.go, report_usecase.go, media_usecase.go (test: *_usecase_test.go berdampingan). JANGAN membuat subfolder per module di dalam usecase.
+  domain/{entity, repository(interface), service(external interface), errs}
+  usecase/            # FLAT — single `usecase` package, 1 file per module: auth_usecase.go, user_usecase.go, supplier_usecase.go, admin_usecase.go, category_usecase.go, product_usecase.go, inventory_usecase.go, catalog_usecase.go, cart_usecase.go, checkout_usecase.go, order_usecase.go, shipping_usecase.go, review_usecase.go, wishlist_usecase.go, payout_usecase.go, notification_usecase.go, report_usecase.go, media_usecase.go (test: *_usecase_test.go alongside). DO NOT create a subfolder per module inside usecase.
   delivery/http/{handler, middleware, dto, route}
   repository/{postgres, redis}
-  infra/{database, cache, grpcclient, rajaongkir, storage, queue}   # `cache` = init Redis client (bukan `redis`, hindari duplikasi nama dengan repository/redis)
-  app/{server.go, container.go}   # DI manual
+  infra/{database, cache, grpcclient, rajaongkir, storage, queue}   # `cache` = Redis client init (not `redis`, to avoid name collision with repository/redis)
+  app/{server.go, container.go}   # manual DI
 pkg/{jwt, response, pagination, validator, hash, logger, apperr}
 proto/  migrations/  seeds/  docs/  deploy/  scripts/  test/
 ```
 
-Aturan:
-- Semua interface repo & service eksternal didefinisikan di `internal/domain`, implementasi di `repository/` atau `infra/`.
-- Handler TIDAK berisi business logic — hanya bind DTO, panggil usecase, map error → response.
-- File output user: `/mnt` tidak relevan — ini repo lokal biasa.
+Rules:
+- All repo interfaces & external service interfaces are defined in `internal/domain`, implementations in `repository/` or `infra/`.
+- Handlers contain NO business logic — only bind DTO, call usecase, map error → response.
+- User output files: `/mnt` is not relevant here — this is a regular local repo.
 
-## 4. Domain & Skema Data (ringkasan — detail di docs/erd.md)
+## 4. Domain & Data Schema (summary — details in docs/erd.md)
 
-Tabel inti (±28): roles, users (role_id FK langsung — TANPA tabel pivot), user_addresses, suppliers (1:1 users, status pending/approved/rejected/suspended, origin_city_id, own_fleet_enabled), supplier_documents, supplier_bank_accounts, categories (hierarkis parent_id), products (specs jsonb, search_vector tsvector+GIN, rating denormalized), product_variants (price, weight_gram WAJIB, dimensi, unit, min_order_qty, stock), product_images, stock_movements (append-only), stock_reservations (active/converted/released, expires_at), carts, cart_items, checkout_groups, payments (1:1 checkout_group, xendit_invoice_id), orders (split per supplier di bawah checkout_group, snapshot shipping_address jsonb, commission_amount), order_items (snapshot nama/harga/berat), order_status_histories, shipments (method courier|supplier_fleet), reviews (1:1 order_item), supplier_balances, ledger_entries (append-only, balance_after), withdraw_requests, notifications, wishlists, audit_logs, banners.
+Core tables (~28): roles, users (role_id direct FK — NO pivot table), user_addresses, suppliers (1:1 users, status pending/approved/rejected/suspended, origin_city_id, own_fleet_enabled), supplier_documents, supplier_bank_accounts, categories (hierarchical parent_id), products (specs jsonb, search_vector tsvector+GIN, rating denormalized), product_variants (price, weight_gram REQUIRED, dimensions, unit, min_order_qty, stock), product_images, stock_movements (append-only), stock_reservations (active/converted/released, expires_at), carts, cart_items, checkout_groups, payments (1:1 checkout_group, xendit_invoice_id), orders (split per supplier under checkout_group, snapshot shipping_address jsonb, commission_amount), order_items (snapshot name/price/weight), order_status_histories, shipments (method courier|supplier_fleet), reviews (1:1 order_item), supplier_balances, ledger_entries (append-only, balance_after), withdraw_requests, notifications, wishlists, audit_logs, banners.
 
-ID: UUID v7. Timestamps: timestamptz. Soft delete hanya jika perlu (default: tidak).
+ID: UUID v7. Timestamps: timestamptz. Soft delete only if needed (default: no).
 
-## 5. Keputusan Desain Kritis (WAJIB diikuti)
+## 5. Critical Design Decisions (MUST be followed)
 
-1. **Split order per supplier**: 1 checkout → N orders (per supplier) di bawah 1 checkout_group → 1 invoice Xendit. Ongkir dihitung per order.
-2. **Ongkir**: chargeable weight = max(berat aktual, volumetrik (p×l×t/6000)). Dukung 2 metode: kurir RajaOngkir & armada supplier (flat/zona km).
-3. **Stock reservation**: checkout confirm → Redis lock per variant → validasi → insert reservation (expires 2 jam). Dibayar → convert ke stock_movements + kurangi stok. Expired → job release. JANGAN pernah langsung memotong stok saat checkout.
-4. **Escrow + ledger**: dana masuk platform. Order completed → ledger credit_order + debit_commission (komisi 4%) → saldo supplier. Withdraw → approval admin → disbursement via payment-service. `ledger_entries` append-only, tidak boleh ada UPDATE/DELETE.
-5. **Order state machine**: pending_payment → paid → processed → shipped → delivered → completed; cabang expired/cancelled(+refund). Transisi divalidasi di usecase per aktor (supplier/user/admin/system), semua dicatat di order_status_histories.
+1. **Split order per supplier**: 1 checkout → N orders (per supplier) under 1 checkout_group → 1 Xendit invoice. Shipping cost calculated per order.
+2. **Shipping cost**: chargeable weight = max(actual weight, volumetric (w×l×h/6000)). Support 2 methods: RajaOngkir courier & supplier fleet (flat/km zone).
+3. **Stock reservation**: checkout confirm → Redis lock per variant → validation → insert reservation (expires in 2 hours). Paid → convert to stock_movements + decrement stock. Expired → release job. NEVER decrement stock directly at checkout.
+4. **Escrow + ledger**: funds go to the platform. Order completed → ledger credit_order + debit_commission (4% commission) → supplier balance. Withdraw → admin approval → disbursement via payment-service. `ledger_entries` is append-only, no UPDATE/DELETE allowed.
+5. **Order state machine**: pending_payment → paid → processed → shipped → delivered → completed; branches expired/cancelled(+refund). Transitions validated in usecase per actor (supplier/user/admin/system), all logged in order_status_histories.
 6. **RBAC**: middleware `Auth()` + `RequireRole(role)`; route group `/api/v1/{public|user|supplier|admin}`.
-7. **Response envelope standar** (pkg/response): `{success, message, data, meta, errors}`. Error domain di-map ke HTTP status via pkg/apperr.
-8. **Snapshot** harga/nama/alamat di order_items & orders — jangan join ke data master untuk data historis order.
+7. **Standard response envelope** (pkg/response): `{success, message, data, meta, errors}`. Domain errors mapped to HTTP status via pkg/apperr.
+8. **Snapshot** price/name/address in order_items & orders — do not join to master data for historical order data.
 
 ## 6. Background Jobs (Asynq)
 
-`email:send`, `order:expire` (batalkan + release reservasi), `order:autocomplete` (N hari setelah delivered), `payment:sync`, `stock:release`, `media:process` (resize gambar), `report:generate`, `notification:lowstock` (cron).
+`email:send`, `order:expire` (cancel + release reservation), `order:autocomplete` (N days after delivered), `payment:sync`, `stock:release`, `media:process` (image resize), `report:generate`, `notification:lowstock` (cron).
 
-## 7. Konvensi Kode
+## 7. Code Conventions
 
-- **SEBELUM memakai API suatu package, baca docs/packages-reference.md terlebih dahulu** — itu sumber kebenaran pertama untuk sintaks & pola setiap dependency (Fiber v3, pgx, sqlc, Asynq, dll). Jangan menebak API dari ingatan dan jangan memakai pola Fiber v2. Jika menemukan API yang berbeda dari dokumen, perbaiki dokumennya dalam commit yang sama.
-- Bahasa kode/komentar/commit: English. Pesan error ke user (response message): Bahasa Indonesia.
-- Nama file snake_case, package singular pendek.
-- Setiap usecase punya unit test (mock repo via mockery). Repository ditest dengan testcontainers.
-- Migrasi: satu perubahan = satu pasang file up/down. Jangan edit migrasi yang sudah dibuat — buat migrasi baru.
-- Validasi DTO di layer delivery (validator tags), validasi bisnis di usecase.
-- Jangan commit secret. Semua konfigurasi via env (lihat .env.example).
-- Setelah perubahan signifikan: `make lint && make test` harus hijau sebelum lanjut.
+- **BEFORE using a package's API, read docs/packages-reference.md first** — it's the primary source of truth for syntax & patterns of every dependency (Fiber v3, pgx, sqlc, Asynq, etc.). Don't guess an API from memory and don't use Fiber v2 patterns. If you find an API that differs from the document, fix the document in the same commit.
+- Language for code/comments/commits: English. Error messages to users (response message): Indonesian.
+- File names snake_case, short singular package names.
+- Every usecase has a unit test (mock repo via mockery). Repositories are tested with testcontainers.
+- Migrations: one change = one up/down file pair. Do not edit migrations that already exist — create a new migration.
+- DTO validation in the delivery layer (validator tags), business validation in the usecase.
+- Never commit secrets. All configuration via env (see .env.example).
+- After significant changes: `make lint && make test` must be green before proceeding.
 
-## 8. Roadmap Fase (kerjakan berurutan, satu fase = satu rangkaian PR)
+## 8. Phase Roadmap (work sequentially, one phase = one series of PRs)
 
-1. **Fondasi**: skeleton sesuai struktur di atas, config, koneksi PG+Redis, logger, response envelope, apperr, middleware dasar (recover, requestid, logger, ratelimit), migrasi awal (roles, users), seeds roles+admin, docker-compose, Makefile (run, migrate, seed, test, lint, gen-proto), health endpoint.
-2. **Auth + RBAC**: register/login/refresh/logout, verifikasi email OTP (job email:send → stub notification-service dulu), reset password, middleware Auth+RequireRole.
-3. **Supplier onboarding**: registrasi toko, upload dokumen (media module + MinIO), approval/reject admin + audit_logs.
-4. **Katalog**: category CRUD (admin), product+variant+image CRUD (supplier), inventory & movements, catalog publik (search tsvector, filter, pagination cursor).
-5. **Transaksi inti**: cart → checkout preview (ongkir RajaOngkir + armada) → confirm (lock+reservation+split order) → payment-service gRPC (implement service beneran di repo terpisah/folder services/) → webhook paid → order state machine → shipment.
-6. **Pasca-transaksi**: review, notifikasi in-app, payout (ledger, withdraw, approval, disbursement).
-7. **Pelengkap**: wishlist, report, banner, hardening + integration test end-to-end.
+1. **Foundation**: skeleton matching the structure above, config, PG+Redis connections, logger, response envelope, apperr, base middleware (recover, requestid, logger, ratelimit), initial migrations (roles, users), seeds roles+admin, docker-compose, Makefile (run, migrate, seed, test, lint, gen-proto), health endpoint.
+2. **Auth + RBAC**: register/login/refresh/logout, email OTP verification (email:send job → stub notification-service for now), password reset, Auth+RequireRole middleware.
+3. **Supplier onboarding**: store registration, document upload (media module + MinIO), admin approval/reject + audit_logs.
+4. **Catalog**: category CRUD (admin), product+variant+image CRUD (supplier), inventory & movements, public catalog (tsvector search, filter, cursor pagination).
+5. **Core transactions**: cart → checkout preview (RajaOngkir shipping + fleet) → confirm (lock+reservation+split order) → payment-service gRPC (implement actual service in a separate repo/services/ folder) → paid webhook → order state machine → shipment.
+6. **Post-transaction**: review, in-app notifications, payout (ledger, withdraw, approval, disbursement).
+7. **Complementary**: wishlist, report, banner, hardening + end-to-end integration tests.
 
-## 9. Cara Kerja yang Saya Harapkan dari Claude Code
+## 9. Expected Way of Working from Claude Code
 
-- Sebelum mulai fase: tampilkan rencana file yang akan dibuat/diubah, tunggu konfirmasi saya untuk fase besar.
-- Kerjakan dalam potongan yang bisa dikompilasi & ditest — jangan tulis 50 file sekaligus tanpa pernah menjalankan build.
-- Jika ada ambiguitas terhadap dokumen ini, tanya dulu; jangan mengarang keputusan arsitektur baru.
-- Update file PROGRESS.md setiap menyelesaikan sub-task (checklist per fase).
+- Before starting a phase: show the plan of files to be created/changed, wait for my confirmation for major phases.
+- Work in chunks that compile & can be tested — don't write 50 files at once without ever running a build.
+- If there's ambiguity against this document, ask first; don't invent new architectural decisions.
+- Update PROGRESS.md every time a sub-task is completed (checklist per phase).
 
 ## 10. Git Workflow
 
-### Setup Awal
+### Initial Setup
 
-1. Inisialisasi git repo jika belum ada. Branch utama: main.
-2. Commit pertama: seluruh dokumen perencanaan (CLAUDE.md, docs/) dengan pesan docs: initial project planning documents.
-3. Buat PROGRESS.md berisi checklist SEMUA FR dan AC dari Fase 1–7 (salin dari docs/requirements.md), semua belum tercentang. Commit: docs: add progress tracker.
-4. Jika remote GitHub belum terpasang, tanyakan URL repo. Verifikasi gh auth status berfungsi — jika tidak, beri tahu dan gunakan fallback.
+1. Initialize git repo if not already done. Main branch: main.
+2. First commit: all planning documents (CLAUDE.md, docs/) with message docs: initial project planning documents.
+3. Create PROGRESS.md containing a checklist of ALL FRs and ACs from Phases 1–7 (copy from docs/requirements.md), all unchecked. Commit: docs: add progress tracker.
+4. If GitHub remote is not set up, ask for the repo URL. Verify gh auth status works — if not, report it and use a fallback.
 
-### Siklus Per Fase
+### Per-Phase Cycle
 
-Untuk setiap fase N, jalankan urutan ini:
+For each phase N, run this sequence:
 
-- **A. BRANCH** — dari main terbaru, buat branch: feat/fase-N-<nama-singkat> (contoh: feat/fase-1-fondasi, feat/fase-2-auth-rbac). DILARANG commit langsung ke main. Satu branch = satu fase, jangan dicampur.
-- **B. RENCANA** — tampilkan rencana implementasi: daftar file yang akan dibuat/diubah, dipetakan ke setiap FR-N.x, plus urutan pengerjaannya sebagai daftar sub-task kecil. TUNGGU persetujuan sebelum menulis kode.
-- **C. IMPLEMENTASI** — kerjakan sub-task satu per satu:
-  - Setiap sub-task harus berakhir dalam kondisi bisa di-build (jalankan build + test terkait sebelum commit).
-  - Commit SETIAP sub-task selesai, sekecil apa pun. Jangan menumpuk banyak pekerjaan dalam satu commit.
-  - Format commit: conventional commits + rujukan requirement. Contoh: feat(auth): implement login with brute force guard [FR-2.3], test(checkout): add concurrent stock race test [AC-5.b], fix(order): reject illegal status transition [FR-5.8].
-  - Setiap FR selesai: centang di PROGRESS.md dan ikutkan dalam commit yang sama ("... + update progress").
-  - Jika menemui ambiguitas: berhenti, tanya, catat keputusannya di PROGRESS.md bagian "Keputusan".
-- **D. VERIFIKASI FASE** — jalankan seluruh AC-N.x. Fase selesai hanya jika: semua AC lolos, make lint && make test hijau, migrasi up/down bersih dari database kosong, dan docker compose up sehat. Laporkan status setiap AC satu per satu (lolos/gagal + bukti singkat).
-- **E. PULL REQUEST** — setelah semua AC lolos:
-  - Centang semua FR & AC fase di PROGRESS.md, commit terakhir: docs: complete fase N progress checklist.
-  - Push branch, lalu buat PR ke main via gh pr create dengan: judul "Fase N: <nama fase>", body berisi ringkasan perubahan, checklist FR & AC yang lolos, cara menguji manual, dan catatan keputusan yang diambil.
-  - Fallback jika gh/remote tidak tersedia: push branch saja (atau commit lokal), lalu tuliskan draft deskripsi PR ke file docs/pr/fase-N.md dan beri tahu untuk membuat PR manual.
-- **F. BERHENTI & TUNGGU** — jangan mulai fase berikutnya sebelum konfirmasi PR sudah di-review/merge. Setelah dikonfirmasi lanjut: checkout main, pull, ulangi siklus dari langkah A untuk fase N+1.
+- **A. BRANCH** — from latest main, create branch: feat/fase-N-<short-name> (example: feat/fase-1-fondasi, feat/fase-2-auth-rbac). Committing directly to main is FORBIDDEN. One branch = one phase, don't mix.
+- **B. PLAN** — show the implementation plan: list of files to be created/changed, mapped to each FR-N.x, plus the work order as a list of small sub-tasks. WAIT for approval before writing code.
+- **C. IMPLEMENTATION** — work through sub-tasks one by one:
+  - Every sub-task must end in a buildable state (run build + related tests before commit).
+  - Commit EVERY completed sub-task, no matter how small. Don't stack a lot of work into one commit.
+  - Commit format: conventional commits + requirement reference. Example: feat(auth): implement login with brute force guard [FR-2.3], test(checkout): add concurrent stock race test [AC-5.b], fix(order): reject illegal status transition [FR-5.8].
+  - When an FR is done: check it off in PROGRESS.md and include it in the same commit ("... + update progress").
+  - If you encounter ambiguity: stop, ask, record the decision in the PROGRESS.md "Decisions" section.
+- **D. PHASE VERIFICATION** — run all AC-N.x. Phase is done only if: all ACs pass, make lint && make test is green, migration up/down is clean from an empty database, and docker compose up is healthy. Report the status of each AC one by one (pass/fail + brief evidence).
+- **E. PULL REQUEST** — after all ACs pass:
+  - Check off all phase FRs & ACs in PROGRESS.md, final commit: docs: complete fase N progress checklist.
+  - Push branch, then create a PR to main via gh pr create with: title "Fase N: <phase name>", body containing a summary of changes, checklist of passed FRs & ACs, manual testing instructions, and notes on decisions made.
+  - Fallback if gh/remote is unavailable: just push the branch (or commit locally), then write a draft PR description to docs/pr/fase-N.md and report that a manual PR needs to be created.
+- **F. STOP & WAIT** — don't start the next phase before confirmation that the PR has been reviewed/merged. Once confirmed to proceed: checkout main, pull, repeat the cycle from step A for phase N+1.
 
-### Aturan Tambahan
+### Additional Rules
 
-- Jangan pernah force push, jangan pernah rebase/ubah history yang sudah di-push, jangan hapus branch sebelum PR di-merge.
-- Jangan commit file secret/.env — pastikan .gitignore benar sejak Fase 1.
-- Jika sesi terputus: baca CLAUDE.md + PROGRESS.md + git log --oneline -20 dan git status untuk memulihkan konteks, lanjutkan dari sub-task yang belum tercentang di branch fase yang sedang aktif.
+- Never force push, never rebase/alter already-pushed history, never delete a branch before the PR is merged.
+- Don't commit secret/.env files — make sure .gitignore is correct from Phase 1.
+- If a session is interrupted: read CLAUDE.md + PROGRESS.md + git log --oneline -20 and git status to recover context, continue from the unchecked sub-task on the currently active phase branch.
