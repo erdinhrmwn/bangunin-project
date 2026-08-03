@@ -99,7 +99,7 @@ Checklist of FRs & ACs per phase. Check off only after verification passes (buil
 
 ### Functional Requirements
 - [ ] FR-5.1 Cart
-- [ ] FR-5.2 RajaOngkir client (ShippingService + mock mode)
+- [ ] FR-5.2 ShippingService adapter (internal/infra/rajaongkir, mock mode)
 - [ ] FR-5.3 Checkout preview
 - [ ] FR-5.4 Checkout confirm (lock + TX + reservation)
 - [ ] FR-5.5 PaymentService adapter (internal/infra/xendit)
