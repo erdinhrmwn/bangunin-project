@@ -5,12 +5,14 @@ package order
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
+	"erdinhrmwn/bangunin/internal/domain/errs"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/domain/service"
 	"erdinhrmwn/bangunin/internal/pkg/notify"
@@ -100,7 +102,10 @@ func (u *Usecase) transition(ctx context.Context, o *entity.Order, toStatus, act
 		return apperr.New("INVALID_STATUS_TRANSITION", fmt.Sprintf("Actor %s cannot move order to %s", actorType, toStatus), 409)
 	}
 
-	if err := u.orders.UpdateStatus(ctx, o.ID, toStatus); err != nil {
+	if err := u.orders.UpdateStatus(ctx, o.ID, o.Status, toStatus); err != nil {
+		if errors.Is(err, errs.ErrConflict) {
+			return apperr.New("CONFLICT", "Order status changed concurrently, please retry", 409)
+		}
 		return err
 	}
 	histID, err := uuid.NewV7()
@@ -119,6 +124,30 @@ func (u *Usecase) transition(ctx context.Context, o *entity.Order, toStatus, act
 
 func (u *Usecase) Get(ctx context.Context, id uuid.UUID) (*entity.Order, error) {
 	return u.orders.FindByID(ctx, id)
+}
+
+// GetForUser enforces buyer ownership (FR-5.5), mirroring payout usecase's per-actor checks.
+func (u *Usecase) GetForUser(ctx context.Context, id, userID uuid.UUID) (*entity.Order, error) {
+	o, err := u.orders.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if o.UserID != userID {
+		return nil, apperr.New("FORBIDDEN", "Order does not belong to you", 403)
+	}
+	return o, nil
+}
+
+// GetForSupplier enforces supplier ownership (FR-5.5), mirroring payout usecase's per-actor checks.
+func (u *Usecase) GetForSupplier(ctx context.Context, id, supplierID uuid.UUID) (*entity.Order, error) {
+	o, err := u.orders.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if o.SupplierID != supplierID {
+		return nil, apperr.New("FORBIDDEN", "Order does not belong to you", 403)
+	}
+	return o, nil
 }
 
 func (u *Usecase) History(ctx context.Context, orderID uuid.UUID) ([]*entity.OrderStatusHistory, error) {
@@ -258,7 +287,10 @@ func (u *Usecase) ForceStatus(ctx context.Context, orderID, adminID uuid.UUID, t
 		return err
 	}
 	before := o.Status
-	if err := u.orders.UpdateStatus(ctx, orderID, toStatus); err != nil {
+	if err := u.orders.UpdateStatus(ctx, orderID, before, toStatus); err != nil {
+		if errors.Is(err, errs.ErrConflict) {
+			return apperr.New("CONFLICT", "Order status changed concurrently, please retry", 409)
+		}
 		return err
 	}
 	histID, err := uuid.NewV7()

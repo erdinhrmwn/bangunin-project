@@ -11,7 +11,11 @@ import (
 
 type OrderRepository interface {
 	Create(ctx context.Context, o *entity.Order) error
-	UpdateStatus(ctx context.Context, id uuid.UUID, status string) error
+	// UpdateStatus is guarded by fromStatus (WHERE status = fromStatus) to
+	// prevent a race between two concurrent status transitions (e.g. a
+	// webhook and a cron job) from both succeeding against a stale
+	// in-memory status. Returns errs.ErrConflict if no row matched.
+	UpdateStatus(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) error
 	FindByID(ctx context.Context, id uuid.UUID) (*entity.Order, error)
 	ListByCheckoutGroupID(ctx context.Context, checkoutGroupID uuid.UUID) ([]*entity.Order, error)
 	ListByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*entity.Order, int, error)

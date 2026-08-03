@@ -48,5 +48,5 @@ func (h *HealthHandler) Check(c fiber.Ctx) error {
 	if healthy {
 		return c.Status(fiber.StatusOK).JSON(response.Success("ok", data))
 	}
-	return c.Status(fiber.StatusServiceUnavailable).JSON(response.Error("degraded", data))
+	return c.Status(fiber.StatusServiceUnavailable).JSON(response.Envelope{Success: false, Message: "degraded", Data: data})
 }

@@ -6,12 +6,18 @@ package checkout
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
 
 	"erdinhrmwn/bangunin/internal/domain/entity"
@@ -70,20 +76,40 @@ func New(
 	}
 }
 
-// quoteKey scopes cached shipping quotes to the user + delivery address, so a
-// quote from one address can't validate a Confirm against another.
-func quoteKey(userID, addressID uuid.UUID) string {
-	return "checkout_quote:" + userID.String() + ":" + addressID.String()
+// basketFingerprint deterministically encodes the requested items (sorted by
+// variant ID) so a cached shipping quote can be tied to the exact basket
+// that produced it — otherwise a quote for one basket could validate a
+// Confirm for a completely different (cheaper-to-ship) one.
+func basketFingerprint(items []ItemRequest) string {
+	sorted := make([]ItemRequest, len(items))
+	copy(sorted, items)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].VariantID.String() < sorted[j].VariantID.String() })
+	parts := make([]string, len(sorted))
+	for i, it := range sorted {
+		parts[i] = it.VariantID.String() + ":" + strconv.Itoa(it.Qty)
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, ",")))
+	return hex.EncodeToString(sum[:])
+}
+
+// quoteKey scopes cached shipping quotes to the user + delivery address +
+// exact basket contents, so a quote can't validate a Confirm for a different
+// address or a different set of items (price-manipulation fix, AC-5-related).
+func quoteKey(userID, addressID uuid.UUID, basket string) string {
+	return "checkout_quote:" + userID.String() + ":" + addressID.String() + ":" + basket
 }
 
 // validateShippingCosts rejects any ConfirmGroupChoice whose client-supplied
 // ShippingCost doesn't match one of the costs Preview actually quoted for
 // that supplier (courier options or the fleet flat rate), closing the price-
 // manipulation gap where a client could set an arbitrary ShippingCost.
-func (u *Usecase) validateShippingCosts(ctx context.Context, userID, addressID uuid.UUID, choices []ConfirmGroupChoice) error {
-	raw, err := u.quotes.Get(ctx, quoteKey(userID, addressID))
+func (u *Usecase) validateShippingCosts(ctx context.Context, userID, addressID uuid.UUID, items []ItemRequest, choices []ConfirmGroupChoice) error {
+	raw, err := u.quotes.Get(ctx, quoteKey(userID, addressID, basketFingerprint(items)))
 	if err != nil {
-		return apperr.New("QUOTE_EXPIRED", "Shipping quote expired, please preview checkout again", 422)
+		if errors.Is(err, redis.Nil) {
+			return apperr.New("QUOTE_EXPIRED", "Shipping quote expired, please preview checkout again", 422)
+		}
+		return fmt.Errorf("checkout: get cached shipping quote: %w", err)
 	}
 	var quoted map[string][]float64
 	if err := json.Unmarshal([]byte(raw), &quoted); err != nil {
@@ -289,8 +315,12 @@ func (u *Usecase) Preview(ctx context.Context, userID, addressID uuid.UUID, item
 		}
 		quoted[pg.SupplierID.String()] = costs
 	}
-	if data, err := json.Marshal(quoted); err == nil {
-		_ = u.quotes.Set(ctx, quoteKey(userID, addressID), string(data), quoteTTL)
+	data, err := json.Marshal(quoted)
+	if err != nil {
+		return nil, fmt.Errorf("checkout: marshal shipping quote: %w", err)
+	}
+	if err := u.quotes.Set(ctx, quoteKey(userID, addressID, basketFingerprint(items)), string(data), quoteTTL); err != nil {
+		return nil, fmt.Errorf("checkout: cache shipping quote: %w", err)
 	}
 
 	return &PreviewResult{Groups: groups, GrandTotalEstimate: grandTotal}, nil
@@ -340,15 +370,18 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 		return nil, apperr.New("FORBIDDEN", "Address does not belong to you", 403)
 	}
 
-	if err := u.validateShippingCosts(ctx, userID, addressID, choices); err != nil {
+	allItems := make([]ItemRequest, 0)
+	for _, c := range choices {
+		allItems = append(allItems, c.Items...)
+	}
+
+	if err := u.validateShippingCosts(ctx, userID, addressID, allItems, choices); err != nil {
 		return nil, err
 	}
 
-	variantIDs := make([]uuid.UUID, 0)
-	for _, c := range choices {
-		for _, it := range c.Items {
-			variantIDs = append(variantIDs, it.VariantID)
-		}
+	variantIDs := make([]uuid.UUID, 0, len(allItems))
+	for _, it := range allItems {
+		variantIDs = append(variantIDs, it.VariantID)
 	}
 	sort.Slice(variantIDs, func(i, j int) bool { return variantIDs[i].String() < variantIDs[j].String() })
 
@@ -384,10 +417,6 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 		PostalCode: addr.PostalCode, AddressDetail: addr.AddressDetail,
 	}
 
-	allItems := make([]ItemRequest, 0, len(variantIDs))
-	for _, c := range choices {
-		allItems = append(allItems, c.Items...)
-	}
 	variantByID, productByID, err := u.batchFetchVariantsAndProducts(ctx, allItems)
 	if err != nil {
 		return nil, err
@@ -476,10 +505,17 @@ func (u *Usecase) Confirm(ctx context.Context, userID, addressID uuid.UUID, choi
 	invoiceID, invoiceURL, err := u.paymentGW.CreateInvoice(ctx, groupID, grandTotal, "Order "+groupNumber)
 	if err != nil {
 		_ = u.checkoutGroups.UpdateStatus(ctx, groupID, entity.CheckoutGroupStatusPaymentFailed)
+		adjustments := make([]repository.ReservationAdjustment, 0)
 		for _, co := range confirmOrders {
 			for _, r := range co.Reservations {
-				_ = u.reservations.UpdateStatus(ctx, r.ID, entity.StockReservationStatusReleased)
+				adjustments = append(adjustments, repository.ReservationAdjustment{
+					ReservationID: r.ID, VariantID: r.VariantID,
+					Status: entity.StockReservationStatusReleased,
+				})
 			}
+		}
+		if aerr := u.reservations.ApplyAdjustments(ctx, adjustments); aerr != nil {
+			return nil, fmt.Errorf("checkout: release reservations after invoice failure: %w", aerr)
 		}
 		return nil, apperr.New("PAYMENT_UNAVAILABLE", "Failed to create payment invoice, please try again", 502)
 	}

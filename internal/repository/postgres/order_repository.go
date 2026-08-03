@@ -39,9 +39,15 @@ func (r *OrderRepository) Create(ctx context.Context, o *entity.Order) error {
 	return nil
 }
 
-func (r *OrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
-	if _, err := r.db.Exec(ctx, `UPDATE orders SET status = $2 WHERE id = $1`, id, status); err != nil {
+// UpdateStatus guards the update on the expected prior status; a mismatch
+// (concurrent transition already applied) surfaces as errs.ErrConflict.
+func (r *OrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) error {
+	tag, err := r.db.Exec(ctx, `UPDATE orders SET status = $2 WHERE id = $1 AND status = $3`, id, toStatus, fromStatus)
+	if err != nil {
 		return fmt.Errorf("postgres: update order status: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return errs.ErrConflict
 	}
 	return nil
 }

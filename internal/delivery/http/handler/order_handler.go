@@ -8,7 +8,6 @@ import (
 	"erdinhrmwn/bangunin/internal/domain/entity"
 	"erdinhrmwn/bangunin/internal/domain/repository"
 	"erdinhrmwn/bangunin/internal/pkg/ctxutil"
-	"erdinhrmwn/bangunin/pkg/apperr"
 	"erdinhrmwn/bangunin/pkg/pagination"
 	"erdinhrmwn/bangunin/pkg/response"
 	"erdinhrmwn/bangunin/pkg/validator"
@@ -49,12 +48,9 @@ func (h *OrderHandler) GetMine(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	o, err := h.order.Get(c.Context(), id)
+	o, err := h.order.GetForUser(c.Context(), id, userID)
 	if err != nil {
 		return errJSON(c, err)
-	}
-	if o.UserID != userID {
-		return errJSON(c, apperr.New("FORBIDDEN", "Order does not belong to you", 403))
 	}
 	return c.JSON(response.Success("OK", o))
 }
@@ -100,12 +96,9 @@ func (h *OrderHandler) GetSupplier(c fiber.Ctx) error {
 	if err != nil {
 		return errJSON(c, err)
 	}
-	o, err := h.order.Get(c.Context(), id)
+	o, err := h.order.GetForSupplier(c.Context(), id, supplierID)
 	if err != nil {
 		return errJSON(c, err)
-	}
-	if o.SupplierID != supplierID {
-		return errJSON(c, apperr.New("FORBIDDEN", "Order does not belong to you", 403))
 	}
 	return c.JSON(response.Success("OK", o))
 }
