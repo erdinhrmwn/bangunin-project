@@ -56,7 +56,7 @@ All three follow the same pattern: a `domain/service` interface called in-proces
 ## 2. Concrete Directory Structure
 
 ```
-marketplace-bahan-bangunan/
+bangunin-project/
 ├── cmd/
 │   ├── api/main.go                  # HTTP server (Fiber v3)
 │   ├── worker/main.go               # Asynq worker + scheduler
@@ -133,7 +133,8 @@ marketplace-bahan-bangunan/
 │   │           └── admin.go         # /api/v1/admin/*
 │   │
 │   ├── repository/                  # LAYER 4: persistence implementation
-│   │   ├── postgres/                # pgx + sqlc (or GORM per team preference)
+│   │   ├── postgres/                # pgx + sqlc
+│   │   │   ├── queries/             # *.sql, one file per domain, annotated for sqlc
 │   │   │   └── ... (per domain)
 │   │   └── redis/
 │   │       ├── cache.go             # product/category cache
@@ -154,7 +155,7 @@ marketplace-bahan-bangunan/
 │   │
 │   └── app/
 │       ├── server.go                # Fiber wiring: global middleware, routes, graceful shutdown
-│       └── container.go             # manual dependency injection (or wire/fx)
+│       └── container.go             # manual dependency injection
 │
 ├── pkg/                             # reusable utilities, domain-agnostic
 │   ├── jwt/
@@ -168,8 +169,11 @@ marketplace-bahan-bangunan/
 ├── migrations/                      # golang-migrate: 000001_create_users.up.sql / .down.sql
 ├── seeds/                           # initial data: roles, building material categories, default admin
 ├── docs/
-│   ├── openapi.yaml                 # Swagger/OpenAPI spec
-│   └── erd.md                       # ERD + Mermaid diagram from earlier planning
+│   ├── openapi.yaml                 # Swagger/OpenAPI spec (FR-7.8)
+│   ├── erd.md                       # ERD + Mermaid diagrams
+│   ├── requirements.md              # FR/AC per phase (this is the source doc for PROGRESS.md)
+│   ├── project-structure.md         # this document
+│   └── packages-reference.md        # API reference per dependency
 ├── deploy/
 │   ├── docker-compose.yml           # postgres, redis, minio, api, worker
 │   ├── Dockerfile.api
@@ -180,8 +184,12 @@ marketplace-bahan-bangunan/
 │   └── mocks/                       # generated mocks (mockery)
 ├── .env.example
 ├── .golangci.yml
+├── .mockery.yaml                    # mockery config: packages internal/domain/... → test/mocks
+├── sqlc.yaml                        # sqlc config: queries → internal/repository/postgres/sqlcgen
 ├── Makefile                         # run, migrate, seed, test, lint
-└── go.mod
+├── go.mod
+├── go.sum
+└── README.md
 ```
 
 ---
@@ -218,6 +226,6 @@ Each phase produces something demoable, and dependencies between phases flow in 
 
 ## 5. Fiber v3 Notes
 
-- Fiber v3 is still in release candidate stage — the API may change slightly before stable. Pin the version in `go.mod` and read the changelog on every upgrade.
+- Fiber v3 is STABLE (v3.0.0+). Pin the version in `go.mod` and read the changelog on every upgrade regardless — see docs/packages-reference.md §1 for the full API reference.
 - Main changes from v2: `fiber.Ctx` is now an interface, binding via `c.Bind().Body(&dto)`, built-in middleware has been restructured.
 - Since all Fiber code is confined to `internal/delivery/http`, the risk of breaking changes is isolated to one layer — usecase and repository are unaffected.
