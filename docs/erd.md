@@ -399,7 +399,6 @@ sequenceDiagram
     participant RD as Redis
     participant DB as PostgreSQL
     participant RO as RajaOngkir
-    participant PS as Payment Service (gRPC)
     participant XD as Xendit
 
     U->>API: POST /checkout/preview (cart items, address)
@@ -418,16 +417,13 @@ sequenceDiagram
     API->>DB: INSERT checkout_group + orders (per supplier)\n+ order_items (snapshot) + stock_reservations
     API->>DB: COMMIT
     API->>RD: Release lock
-    API->>PS: CreateInvoice(checkout_group, amount) [gRPC]
-    PS->>XD: Create Invoice API
-    XD-->>PS: invoice_id + invoice_url
-    PS-->>API: invoice_url, expires_at
+    API->>XD: Create Invoice API (via PaymentService)
+    XD-->>API: invoice_id + invoice_url
     API->>DB: INSERT payments (pending)
     API-->>U: Redirect to Xendit invoice_url
 
     U->>XD: Pay (VA / e-wallet / QRIS)
-    XD->>PS: Webhook: invoice.paid
-    PS->>API: PaymentPaid(checkout_group_id) [gRPC]
+    XD->>API: Webhook: invoice.paid (POST /internal/payments/callback)
     API->>DB: payments.status = paid,\norders.status = paid,\nconvert stock_reservations → stock_movements
     API->>API: Enqueue job email:send + in-app notification
     API-->>U: "Payment successful" notification
@@ -489,7 +485,6 @@ sequenceDiagram
     actor AD as Admin
     participant API as Monolith API
     participant DB as PostgreSQL
-    participant PS as Payment Service (gRPC)
     participant XD as Xendit
 
     Note over API,DB: Order completed → system credits balance
@@ -501,10 +496,8 @@ sequenceDiagram
 
     AD->>API: Approve withdraw
     API->>DB: status = approved → processing
-    API->>PS: CreateDisbursement(bank, amount) [gRPC]
-    PS->>XD: Disbursement API
-    XD-->>PS: Callback: disbursement completed
-    PS->>API: DisbursementCompleted [gRPC]
+    API->>XD: Disbursement API (via PaymentService)
+    XD-->>API: Webhook: disbursement completed
     API->>DB: status = disbursed,\nledger_entries: debit_withdraw,\nrelease hold
     API-->>S: Notification: funds sent
 
@@ -536,4 +529,4 @@ flowchart TD
 - **One `payments` per `checkout_group`** — Xendit receives a single invoice for the entire group; fund distribution to suppliers happens at the ledger level, not at the payment level.
 - **`ledger_entries` append-only** with `balance_after` makes balances reconstructable and auditable at any time; `supplier_balances` is merely a materialized snapshot.
 - **`search_vector` (tsvector)** populated via trigger or on product update, GIN-indexed for full-text search without needing Elasticsearch in the early phase.
-- All these diagrams are consistent with prior decisions: `role_id` FK directly on `users`, monolith + 2 gRPC services, no voucher & unit converter.
+- All these diagrams are consistent with prior decisions: `role_id` FK directly on `users`, single monolith with internal adapters for payment/notification/shipping (no separate services), no voucher & unit converter.

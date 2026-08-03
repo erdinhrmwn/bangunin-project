@@ -1,5 +1,5 @@
 # Project Structure — Building Materials Marketplace
-**Stack:** Golang (Fiber v3) · PostgreSQL · Redis · Asynq · gRPC (Payment/Xendit, Notification/Mailjet) · RajaOngkir
+**Stack:** Golang (Fiber v3) · PostgreSQL · Redis · Asynq · Xendit (payment) · Mailjet (notification) · RajaOngkir
 
 ---
 
@@ -23,26 +23,29 @@
 | 12 | **Shipping** | RajaOngkir integration (cost & waybill tracking), tracking number input by supplier, **supplier's own fleet delivery** option (flat rate/per km — common for heavy materials like sand & steel), supplier delivery coverage zones | Supplier |
 | 13 | **Review & Rating** | Per-product review (only buyers whose order is completed), aggregate rating on product & store, supplier replies, review photos | User |
 | 14 | **Wishlist** | Save favorite products | User |
-| 15 | **Payout / Settlement** | Escrow flow: funds held until order completed → supplier balance → withdraw request → admin approve → disbursement (via payment service). Supplier transaction ledger, platform commission deduction | Supplier, Admin |
-| 16 | **Notification (in-app)** | In-app notifications (order update, approval, payout) + email trigger via gRPC to notification service. Read/unread status | Everyone |
+| 15 | **Payout / Settlement** | Escrow flow: funds held until order completed → supplier balance → withdraw request → admin approve → disbursement (via `PaymentService`). Supplier transaction ledger, platform commission deduction | Supplier, Admin |
+| 16 | **Notification (in-app)** | In-app notifications (order update, approval, payout) + email trigger via `NotificationService`. Read/unread status | Everyone |
 | 17 | **Report & Analytics** | Supplier dashboard (sales, best-selling products), admin dashboard (GMV, commission, active suppliers), CSV export | Supplier, Admin |
 | 18 | **Media / File Upload** | Upload product images & verification documents to object storage (S3/MinIO), presigned URL, type & size validation, resize/compress via worker | Everyone |
 | 19 | **Audit Log** | Logging of sensitive actions (approval, price changes, user ban, payout) for admin audit purposes | Admin |
 | 20 | **Banner / Promo Display** | Admin-managed homepage banners & featured products (not a voucher system — vouchers remain deferred per earlier decision) | Admin |
 
-### External Services (gRPC — already in the design)
+### External Providers (called via internal adapters, not separate services)
 
-| Service | Responsibility |
-|---------|----------------|
-| **Payment Service (Xendit)** | Create invoice/VA/e-wallet, receive Xendit webhook, disbursement for supplier payout, refund |
-| **Notification Service (Mailjet)** | Send transactional emails (verification, order, payout) based on templates |
+| Provider | Responsibility | Service interface | Adapter package |
+|---------|----------------|-------------------|----------------|
+| **Xendit (payment)** | Create invoice/VA/e-wallet, receive webhook, disbursement for supplier payout, refund | `PaymentService` | `internal/infra/xendit` |
+| **Mailjet (notification)** | Send transactional emails (verification, order, payout) based on templates | `NotificationService` | `internal/infra/mailjet` |
+| **RajaOngkir (shipping)** | Shipping cost calculation, courier list, waybill tracking | `ShippingService` | `internal/infra/rajaongkir` |
+
+All three follow the same pattern: a `domain/service` interface called in-process via a plain HTTP client — no separate repo, proto contract, or extra container for any of them. If the vendor changes later, only the `internal/infra/<vendor>` implementation is swapped; the interface and usecase stay untouched.
 
 ### Background Jobs (Asynq Worker)
 
-- `email:send` — delegate email sending via notification service
+- `email:send` — delegate email sending via `NotificationService`
 - `order:expire` — cancel unpaid orders after X hours + release reserved stock
 - `order:autocomplete` — auto-complete order N days after delivery
-- `payment:sync` — reconcile payment status with payment service
+- `payment:sync` — reconcile payment status with Xendit
 - `stock:release` — release expired stock reservations
 - `media:process` — resize/compress images after upload
 - `report:generate` — generate large reports/CSV exports
@@ -83,11 +86,11 @@ marketplace-bahan-bangunan/
 │   │   │   ├── product_repository.go
 │   │   │   ├── order_repository.go
 │   │   │   └── ... (per domain)
-│   │   ├── service/                 # external service interfaces
-│   │   │   ├── payment_service.go   # contract to payment gRPC
-│   │   │   ├── notification_service.go
-│   │   │   ├── shipping_gateway.go  # RajaOngkir contract
-│   │   │   └── storage_service.go   # object storage contract
+│   │   ├── service/                 # external service interfaces (the vendor swap point)
+│   │   │   ├── payment_service.go       # PaymentService contract, implemented by infra/xendit
+│   │   │   ├── notification_service.go  # NotificationService contract, implemented by infra/mailjet
+│   │   │   ├── shipping_service.go      # ShippingService contract, implemented by infra/rajaongkir
+│   │   │   └── storage_service.go       # StorageService contract, implemented by infra/storage
 │   │   └── errs/
 │   │       └── errors.go            # domain error types (ErrNotFound, ErrInsufficientStock, ...)
 │   │
@@ -140,10 +143,9 @@ marketplace-bahan-bangunan/
 │   ├── infra/                       # external world adapters
 │   │   ├── database/postgres.go     # pool + health
 │   │   ├── cache/client.go          # Redis client init & connection (named `cache` to avoid duplication with repository/redis)
-│   │   ├── grpcclient/
-│   │   │   ├── payment.go           # implementation of domain/service/payment_service.go
-│   │   │   └── notification.go
-│   │   ├── rajaongkir/client.go
+│   │   ├── xendit/client.go         # implements domain/service.PaymentService (in-process, no gRPC)
+│   │   ├── mailjet/client.go        # implements domain/service.NotificationService
+│   │   ├── rajaongkir/client.go     # implements domain/service.ShippingService
 │   │   ├── storage/s3.go            # S3/MinIO
 │   │   └── queue/
 │   │       ├── client.go            # Asynq client (enqueue)
@@ -163,10 +165,6 @@ marketplace-bahan-bangunan/
 │   ├── logger/                      # zerolog/zap setup
 │   └── apperr/                      # domain error → HTTP status mapping
 │
-├── proto/                           # .proto payment & notification + generated code
-│   ├── payment/v1/payment.proto
-│   └── notification/v1/notification.proto
-│
 ├── migrations/                      # golang-migrate: 000001_create_users.up.sql / .down.sql
 ├── seeds/                           # initial data: roles, building material categories, default admin
 ├── docs/
@@ -176,13 +174,13 @@ marketplace-bahan-bangunan/
 │   ├── docker-compose.yml           # postgres, redis, minio, api, worker
 │   ├── Dockerfile.api
 │   └── Dockerfile.worker
-├── scripts/                         # helpers: gen-proto.sh, lint.sh
+├── scripts/                         # helpers: lint.sh
 ├── test/
 │   ├── integration/                 # tests with testcontainers
 │   └── mocks/                       # generated mocks (mockery)
 ├── .env.example
 ├── .golangci.yml
-├── Makefile                         # run, migrate, seed, gen-proto, test, lint
+├── Makefile                         # run, migrate, seed, test, lint
 └── go.mod
 ```
 
@@ -196,7 +194,7 @@ marketplace-bahan-bangunan/
 
 **Stock reservation, not immediate deduction.** When an order is created: stock is reserved (`stock_reservations` row + Redis lock for race conditions). Paid → reservation is converted into a stock deduction. Expired → the `order:expire` job releases the reservation.
 
-**Escrow & ledger for payout.** Funds go to the platform first. Order completed → credited to supplier balance (recorded in `ledger_entries`, platform commission debited). Withdraw → admin approval → disbursement via payment service. Ledger is append-only so balances are always auditable.
+**Escrow & ledger for payout.** Funds go to the platform first. Order completed → credited to supplier balance (recorded in `ledger_entries`, platform commission debited). Withdraw → admin approval → disbursement via the internal payment adapter (Xendit). Ledger is append-only so balances are always auditable.
 
 **Order status as a state machine.** Valid transitions are explicitly defined in the usecase (e.g. `paid → processed` only by supplier, `cancelled` only from `pending_payment`/`paid` with refund). Every transition is recorded in `order_status_histories`.
 
@@ -210,7 +208,7 @@ marketplace-bahan-bangunan/
 2. **Auth + RBAC** — register/login/refresh, email verification (via worker + notification service stub), role middleware.
 3. **Supplier onboarding** — store registration, document upload (media module), admin approval.
 4. **Catalog** — category, product + variants + images, inventory, public search & filter.
-5. **Core transactions** — cart → checkout (RajaOngkir shipping cost, order split) → payment service integration → order state machine → shipping/tracking.
+5. **Core transactions** — cart → checkout (`ShippingService` shipping cost, order split) → `PaymentService` integration (Xendit) → order state machine → shipping/tracking.
 6. **Post-transaction** — review, in-app notification, payout/ledger + withdraw.
 7. **Extras** — wishlist, report/analytics, audit log, banner, hardening (rate limit, integration tests, light load testing).
 

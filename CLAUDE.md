@@ -11,8 +11,7 @@ Vertical marketplace specialized in building materials & construction supplies f
 - **Go 1.25+** (Fiber v3 minimum requirement), HTTP framework **Fiber v3** (STABLE RELEASE v3.0+; handler `func(c fiber.Ctx) error` without pointer, binding via `c.Bind().Body()` — see docs/packages-reference.md §1; isolate all Fiber code in `internal/delivery/http`)
 - **PostgreSQL 16** (pgx + sqlc), **Redis 7** (cache, session, rate limit, stock lock, Asynq backend)
 - **Asynq** for background jobs + scheduler
-- **gRPC** to 2 separate external services: payment-service (Xendit) & notification-service (Mailjet). Contracts in `proto/`
-- **RajaOngkir (Komerce)** via HTTP client for shipping cost & tracking
+- **Payment (Xendit), Notification (Mailjet) & Shipping (RajaOngkir/Komerce)**: internal adapter packages implementing the `domain/service` interfaces (`PaymentService`, `NotificationService`, `ShippingService` in `internal/infra/xendit`, `internal/infra/mailjet`, `internal/infra/rajaongkir`) — plain HTTP clients called in-process, no separate service from day one. The interface is the swap point: changing vendor later means writing a new `internal/infra/<vendor>` implementation, not touching the usecase. Extract any of them to a standalone gRPC service later only if a real need appears (see §5.9).
 - Object storage: **Cloudflare R2** (S3-compatible; use MinIO for dev)
 - zerolog, Viper, golang-migrate, go-playground/validator, golang-jwt/jwt v5, testify + mockery + testcontainers-go, golangci-lint
 - Docker + docker-compose for local dev (postgres, redis, minio, api, worker)
@@ -25,14 +24,14 @@ Clean Architecture, dependencies flow inward: `delivery → usecase → domain �
 cmd/{api,worker,migrate}/main.go
 config/
 internal/
-  domain/{entity, repository(interface), service(external interface), errs}
+  domain/{entity, repository(interface), service(external interface: PaymentService, NotificationService, ShippingService, StorageService), errs}
   usecase/            # FLAT — single `usecase` package, 1 file per module: auth_usecase.go, user_usecase.go, supplier_usecase.go, admin_usecase.go, category_usecase.go, product_usecase.go, inventory_usecase.go, catalog_usecase.go, cart_usecase.go, checkout_usecase.go, order_usecase.go, shipping_usecase.go, review_usecase.go, wishlist_usecase.go, payout_usecase.go, notification_usecase.go, report_usecase.go, media_usecase.go (test: *_usecase_test.go alongside). DO NOT create a subfolder per module inside usecase.
   delivery/http/{handler, middleware, dto, route}
   repository/{postgres, redis}
-  infra/{database, cache, grpcclient, rajaongkir, storage, queue}   # `cache` = Redis client init (not `redis`, to avoid name collision with repository/redis)
+  infra/{database, cache, xendit, mailjet, rajaongkir, storage, queue}   # `cache` = Redis client init (not `redis`, to avoid name collision with repository/redis); `xendit`/`mailjet`/`rajaongkir` = current vendor implementations of the domain/service interfaces, no separate services
   app/{server.go, container.go}   # manual DI
 pkg/{jwt, response, pagination, validator, hash, logger, apperr}
-proto/  migrations/  seeds/  docs/  deploy/  scripts/  test/
+migrations/  seeds/  docs/  deploy/  scripts/  test/
 ```
 
 Rules:
@@ -51,11 +50,12 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete only if needed (default: no).
 1. **Split order per supplier**: 1 checkout → N orders (per supplier) under 1 checkout_group → 1 Xendit invoice. Shipping cost calculated per order.
 2. **Shipping cost**: chargeable weight = max(actual weight, volumetric (w×l×h/6000)). Support 2 methods: RajaOngkir courier & supplier fleet (flat/km zone).
 3. **Stock reservation**: checkout confirm → Redis lock per variant → validation → insert reservation (expires in 2 hours). Paid → convert to stock_movements + decrement stock. Expired → release job. NEVER decrement stock directly at checkout.
-4. **Escrow + ledger**: funds go to the platform. Order completed → ledger credit_order + debit_commission (4% commission) → supplier balance. Withdraw → admin approval → disbursement via payment-service. `ledger_entries` is append-only, no UPDATE/DELETE allowed.
+4. **Escrow + ledger**: funds go to the platform. Order completed → ledger credit_order + debit_commission (4% commission) → supplier balance. Withdraw → admin approval → disbursement via `PaymentService` (Xendit Disbursement API). `ledger_entries` is append-only, no UPDATE/DELETE allowed.
 5. **Order state machine**: pending_payment → paid → processed → shipped → delivered → completed; branches expired/cancelled(+refund). Transitions validated in usecase per actor (supplier/user/admin/system), all logged in order_status_histories.
 6. **RBAC**: middleware `Auth()` + `RequireRole(role)`; route group `/api/v1/{public|user|supplier|admin}`.
 7. **Standard response envelope** (pkg/response): `{success, message, data, meta, errors}`. Domain errors mapped to HTTP status via pkg/apperr.
 8. **Snapshot** price/name/address in order_items & orders — do not join to master data for historical order data.
+9. **Payment/Notification/Shipping as internal adapters, not microservices**: `internal/infra/xendit`, `internal/infra/mailjet`, and `internal/infra/rajaongkir` implement the `domain/service.PaymentService` / `NotificationService` / `ShippingService` interfaces directly in-process — no separate proto contracts, no extra containers, no cross-service webhook hop. Xendit/Mailjet webhooks land directly on a monolith HTTP endpoint. Extract any of them to a standalone gRPC service later only when a real need shows up (separate team/deploy cadence, independent scaling) — the interface boundary already makes that a swap, not a rewrite.
 
 ## 6. Background Jobs (Asynq)
 
@@ -74,11 +74,11 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete only if needed (default: no).
 
 ## 8. Phase Roadmap (work sequentially, one phase = one series of PRs)
 
-1. **Foundation**: skeleton matching the structure above, config, PG+Redis connections, logger, response envelope, apperr, base middleware (recover, requestid, logger, ratelimit), initial migrations (roles, users), seeds roles+admin, docker-compose, Makefile (run, migrate, seed, test, lint, gen-proto), health endpoint.
-2. **Auth + RBAC**: register/login/refresh/logout, email OTP verification (email:send job → stub notification-service for now), password reset, Auth+RequireRole middleware.
+1. **Foundation**: skeleton matching the structure above, config, PG+Redis connections, logger, response envelope, apperr, base middleware (recover, requestid, logger, ratelimit), initial migrations (roles, users), seeds roles+admin, docker-compose, Makefile (run, migrate, seed, test, lint), health endpoint.
+2. **Auth + RBAC**: register/login/refresh/logout, email OTP verification (email:send job → stub `NotificationService` implementation for now), password reset, Auth+RequireRole middleware.
 3. **Supplier onboarding**: store registration, document upload (media module + MinIO), admin approval/reject + audit_logs.
 4. **Catalog**: category CRUD (admin), product+variant+image CRUD (supplier), inventory & movements, public catalog (tsvector search, filter, cursor pagination).
-5. **Core transactions**: cart → checkout preview (RajaOngkir shipping + fleet) → confirm (lock+reservation+split order) → payment-service gRPC (implement actual service in a separate repo/services/ folder) → paid webhook → order state machine → shipment.
+5. **Core transactions**: cart → checkout preview (`ShippingService` via `internal/infra/rajaongkir` + fleet) → confirm (lock+reservation+split order) → `PaymentService` via `internal/infra/xendit` (real Xendit Invoice API calls) → paid webhook → order state machine → shipment.
 6. **Post-transaction**: review, in-app notifications, payout (ledger, withdraw, approval, disbursement).
 7. **Complementary**: wishlist, report, banner, hardening + end-to-end integration tests.
 

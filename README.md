@@ -9,8 +9,7 @@ Vertical marketplace for building materials & construction supplies in Indonesia
 - Go 1.25+ · [Fiber v3](https://gofiber.io) (HTTP)
 - PostgreSQL 16 (pgx + sqlc) · Redis 7 (cache, session, rate limit, stock lock)
 - Asynq (background jobs & scheduler)
-- gRPC to external payment-service (Xendit) & notification-service (Mailjet)
-- RajaOngkir for shipping cost & tracking
+- Xendit (payment), Mailjet (notification) & RajaOngkir (shipping) via internal adapter packages — in-process, no separate services
 - Cloudflare R2 / MinIO (object storage)
 
 ## Docs

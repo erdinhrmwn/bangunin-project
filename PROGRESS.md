@@ -99,10 +99,10 @@ Checklist of FRs & ACs per phase. Check off only after verification passes (buil
 
 ### Functional Requirements
 - [ ] FR-5.1 Cart
-- [ ] FR-5.2 RajaOngkir client (ShippingGateway + mock mode)
+- [ ] FR-5.2 RajaOngkir client (ShippingService + mock mode)
 - [ ] FR-5.3 Checkout preview
 - [ ] FR-5.4 Checkout confirm (lock + TX + reservation)
-- [ ] FR-5.5 Payment-service (services/payment, gRPC, Xendit)
+- [ ] FR-5.5 PaymentService adapter (internal/infra/xendit)
 - [ ] FR-5.6 Paid callback (idempotent)
 - [ ] FR-5.7 order:expire job
 - [ ] FR-5.8 Order state machine
@@ -115,7 +115,7 @@ Checklist of FRs & ACs per phase. Check off only after verification passes (buil
 - [ ] AC-5.b Concurrent confirm race → exactly one succeeds
 - [ ] AC-5.c Expire job releases reservation; duplicate paid callback idempotent
 - [ ] AC-5.d Cancel while paid → refund + stock restored; illegal transition 409
-- [ ] AC-5.e Payment-service runs as separate process; monolith degrades when it's down
+- [ ] AC-5.e Xendit unreachable → checkout returns 502, monolith itself stays up
 
 ---
 
@@ -127,14 +127,14 @@ Checklist of FRs & ACs per phase. Check off only after verification passes (buil
 - [ ] FR-6.3 Withdraw
 - [ ] FR-6.4 Approval & disbursement
 - [ ] FR-6.5 Review
-- [ ] FR-6.6 Full notifications (real notification-service)
+- [ ] FR-6.6 Full notifications (real NotificationService adapter, internal/infra/mailjet)
 - [ ] FR-6.7 Lightweight notification preferences
 
 ### Acceptance Criteria
 - [ ] AC-6.a Correct settlement ledger; idempotent
 - [ ] AC-6.b Withdraw lifecycle + Σ ledger = balance; DB rejects ledger UPDATE
 - [ ] AC-6.c Review guard (403/409) + correct aggregate rating
-- [ ] AC-6.d Notification-service down → doesn't fail the transaction (retry)
+- [ ] AC-6.d Mailjet unreachable → doesn't fail the transaction (Asynq retry)
 
 ---
 
