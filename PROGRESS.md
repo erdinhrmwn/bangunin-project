@@ -95,7 +95,7 @@ Checklist of FRs & ACs per phase. Check off only after verification passes (buil
 
 ---
 
-## PHASE 5 — Core Transactions
+## PHASE 5 — Cart, Checkout & Payment
 
 ### Functional Requirements
 - [ ] FR-5.1 Cart
@@ -104,60 +104,85 @@ Checklist of FRs & ACs per phase. Check off only after verification passes (buil
 - [ ] FR-5.4 Checkout confirm (lock + TX + reservation)
 - [ ] FR-5.5 PaymentService adapter (internal/infra/xendit)
 - [ ] FR-5.6 Paid callback (idempotent)
-- [ ] FR-5.7 order:expire job
-- [ ] FR-5.8 Order state machine
-- [ ] FR-5.9 Shipment
-- [ ] FR-5.10 Order listing (user/supplier/admin)
-- [ ] FR-5.11 order:autocomplete job
 
 ### Acceptance Criteria
-- [ ] AC-5.a E2E multi-supplier checkout→paid→ship→delivered→completed
+- [ ] AC-5.a E2E multi-supplier checkout→paid (2 orders + 1 invoice)
 - [ ] AC-5.b Concurrent confirm race → exactly one succeeds
-- [ ] AC-5.c Expire job releases reservation; duplicate paid callback idempotent
-- [ ] AC-5.d Cancel while paid → refund + stock restored; illegal transition 409
-- [ ] AC-5.e Xendit unreachable → checkout returns 502, monolith itself stays up
+- [ ] AC-5.c Duplicate paid callback → single effect
+- [ ] AC-5.d Xendit unreachable → checkout returns 502, monolith itself stays up
 
 ---
 
-## PHASE 6 — Post-transaction
+## PHASE 6 — Order Lifecycle & Shipment
 
 ### Functional Requirements
-- [ ] FR-6.1 Settlement on complete (ledger + balance)
-- [ ] FR-6.2 Ledger (append-only)
-- [ ] FR-6.3 Withdraw
-- [ ] FR-6.4 Approval & disbursement
-- [ ] FR-6.5 Review
-- [ ] FR-6.6 Full notifications (real NotificationService adapter, internal/infra/mailjet)
-- [ ] FR-6.7 Lightweight notification preferences
+- [ ] FR-6.1 order:expire job
+- [ ] FR-6.2 Order state machine
+- [ ] FR-6.3 Shipment
+- [ ] FR-6.4 Order listing (user/supplier/admin)
+- [ ] FR-6.5 order:autocomplete job
 
 ### Acceptance Criteria
-- [ ] AC-6.a Correct settlement ledger; idempotent
-- [ ] AC-6.b Withdraw lifecycle + Σ ledger = balance; DB rejects ledger UPDATE
-- [ ] AC-6.c Review guard (403/409) + correct aggregate rating
-- [ ] AC-6.d Mailjet unreachable → doesn't fail the transaction (Asynq retry)
+- [ ] AC-6.a E2E paid→ship→delivered→completed (courier + own fleet)
+- [ ] AC-6.b Expire job releases reservation
+- [ ] AC-6.c Cancel while paid → refund + stock restored; illegal transition 409
+- [ ] AC-6.d Order listing correctly filtered per role + admin force-status audited
 
 ---
 
-## PHASE 7 — Supplementary & Hardening
+## PHASE 7 — Post-transaction
 
 ### Functional Requirements
-- [ ] FR-7.1 Wishlist
-- [ ] FR-7.2 Banner
-- [ ] FR-7.3 Supplier report
-- [ ] FR-7.4 Admin report
-- [ ] FR-7.5 Security hardening
-- [ ] FR-7.6 Observability (metrics + Grafana)
-- [ ] FR-7.7 Quality (coverage, CI, seed-demo)
-- [ ] FR-7.8 Documentation (OpenAPI, README, final PROGRESS.md)
+- [ ] FR-7.1 Settlement on complete (ledger + balance)
+- [ ] FR-7.2 Ledger (append-only)
+- [ ] FR-7.3 Withdraw
+- [ ] FR-7.4 Approval & disbursement
+- [ ] FR-7.5 Review
+- [ ] FR-7.6 Full notifications (real NotificationService adapter, internal/infra/mailjet)
+- [ ] FR-7.7 Lightweight notification preferences
 
 ### Acceptance Criteria
-- [ ] AC-7.a CI green + seed-demo + 3-role demo
-- [ ] AC-7.b Metrics + Grafana + load test p95 < 300ms
-- [ ] AC-7.c govulncheck clean; internal callback without secret → 401
-- [ ] AC-7.d OpenAPI valid & 100% route coverage
+- [ ] AC-7.a Correct settlement ledger; idempotent
+- [ ] AC-7.b Withdraw lifecycle + Σ ledger = balance; DB rejects ledger UPDATE
+- [ ] AC-7.c Review guard (403/409) + correct aggregate rating
+- [ ] AC-7.d Mailjet unreachable → doesn't fail the transaction (Asynq retry)
+
+---
+
+## PHASE 8 — Supplementary Features
+
+### Functional Requirements
+- [ ] FR-8.1 Wishlist
+- [ ] FR-8.2 Banner
+- [ ] FR-8.3 Supplier report
+- [ ] FR-8.4 Admin report
+
+### Acceptance Criteria
+- [ ] AC-8.a Wishlist toggle persists; is_wishlisted flag correct
+- [ ] AC-8.b Banner schedule respected; cache invalidates fast
+- [ ] AC-8.c Supplier report export correct (CSV + presigned URL)
+- [ ] AC-8.d Admin report summary correct
+
+---
+
+## PHASE 9 — Production Hardening
+
+### Functional Requirements
+- [ ] FR-9.1 Security hardening
+- [ ] FR-9.2 Observability (metrics + Grafana)
+- [ ] FR-9.3 Quality (coverage, CI, seed-demo)
+- [ ] FR-9.4 Documentation (OpenAPI, README, final PROGRESS.md)
+
+### Acceptance Criteria
+- [ ] AC-9.a CI green + seed-demo + 3-role demo
+- [ ] AC-9.b Metrics + Grafana + load test p95 < 300ms
+- [ ] AC-9.c govulncheck clean; internal callback without secret → 401
+- [ ] AC-9.d OpenAPI valid & 100% route coverage
 
 ---
 
 ## Decisions
 
-Notes on decisions made when ambiguity was encountered (filled in as work progresses, per phase).
+- **2026-08-03**: Split original Phase 5 (Core Transactions, 11 FRs) into Phase 5 (Cart, Checkout & Payment) and Phase 6 (Order Lifecycle & Shipment). Split original Phase 7 (Extras & Hardening) into Phase 8 (Supplementary Features) and Phase 9 (Production Hardening). Reason: each phase should produce something demoable on its own PR; the old Phase 5 mixed 3 independent concerns (cart/shipping, payment, order lifecycle) and old Phase 7 mixed low-priority features with must-have hardening. Total phases: 7 → 9. FR/AC numbers renumbered accordingly; see docs/requirements.md for full detail.
+
+Further notes on decisions made when ambiguity was encountered (filled in as work progresses, per phase).

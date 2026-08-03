@@ -117,75 +117,105 @@ Convention: `FR-x.y` = functional requirement, phase x, number y. All endpoints 
 
 ---
 
-## PHASE 5 — Core Transactions
+## PHASE 5 — Cart, Checkout & Payment
 
-**Goal:** end-to-end money and goods flow: cart → checkout (shipping) → pay via Xendit (`PaymentService`) → order runs through a state machine → shipped → received.
+**Goal:** money in: cart → checkout (shipping) → pay via Xendit (`PaymentService`). Ends at a `paid` order, ready for fulfillment in phase 6.
 
-**In scope:** cart, checkout preview/confirm, `ShippingService` (RajaOngkir), stock reservation + Redis lock, `PaymentService` (real Xendit Invoice API integration), webhook, order lifecycle, shipment, expire job.
-**Out of scope:** reviews, payout (phase 6).
+**In scope:** cart, checkout preview/confirm, `ShippingService` (RajaOngkir), stock reservation + Redis lock, `PaymentService` (real Xendit Invoice API integration), paid webhook.
+**Out of scope:** order state machine beyond `paid`, shipment, expire job (phase 6), reviews, payout (phase 7).
 
 ### Functional Requirements
 - **FR-5.1 Cart**: `GET /user/cart`, `POST /user/cart/items` {variant_id, qty}, `PATCH .../items/:id`, `DELETE .../items/:id`. Merges qty for the same variant. Response grouped per supplier, each item carries an issue flag: out_of_stock, below_min_order, price_changed(since added), product_inactive. Problematic items don't block viewing the cart but do block checkout.
 - **FR-5.2 ShippingService adapter** (`internal/infra/rajaongkir`): implements `domain/service.ShippingService` — GetCost(originCityID, destCityID, weightGram, couriers[]) and (stub for this phase) TrackWaybill. 5 sec timeout, 1 retry, error → `ErrShippingUnavailable`. API key configured via env; provide a mock mode (`RAJAONGKIR_MOCK=true`) returning deterministic rates for dev/test.
 - **FR-5.3 Checkout preview** `POST /user/checkout/preview` {address_id, items[]}: validate all items (stock, min order, active, supplier approved) → group per supplier → per group compute chargeable weight = Σ max(weight, volumetric l·w·h/6000) → call shipping cost in parallel per group → return: groups[{supplier, items, subtotal, shipping_options[courier/service/etd/cost + supplier fleet option if enabled & distance within coverage]}], grand_total_estimate. Address must belong to the user.
 - **FR-5.4 Checkout confirm** `POST /user/checkout/confirm` {address_id, items[], shipping_choice per group}: atomic sequence — (1) Redis lock `stock:{variantID}` (SETNX+TTL 10 sec, sorted by ID to avoid deadlock), (2) DB TX: re-validate price & effective stock (stock − active reservations), insert checkout_group, orders per supplier (order_number format `ORD-YYYYMMDD-XXXXX`, commission_amount = 4% of subtotal, jsonb address snapshot), order_items snapshot, stock_reservations (expires_at = now+2 hours), initial order_status_histories, (3) commit, release lock, (4) call `PaymentService`.CreateInvoice(amount=grand total, external_id=group_number) → store payments, (5) response invoice_url. Failure in step 4 → mark group `payment_failed` and release reservation (compensation), 502 to user.
-- **FR-5.5 PaymentService adapter** (`internal/infra/xendit`): implements `domain/service.PaymentService` in-process (no separate service). Methods: CreateInvoice, GetInvoice, (CreateDisbursement prepared for phase 6). Real Xendit Invoice API integration; Xendit webhook lands directly on the monolith's own HTTP endpoint `POST /internal/payments/callback` secured with a shared secret header (`X-Internal-Secret`). Provide a full mock mode without Xendit for dev.
+- **FR-5.5 PaymentService adapter** (`internal/infra/xendit`): implements `domain/service.PaymentService` in-process (no separate service). Methods: CreateInvoice, GetInvoice, (CreateDisbursement prepared for phase 7). Real Xendit Invoice API integration; Xendit webhook lands directly on the monolith's own HTTP endpoint `POST /internal/payments/callback` secured with a shared secret header (`X-Internal-Secret`). Provide a full mock mode without Xendit for dev.
 - **FR-5.6 Paid callback** (idempotent, key: xendit_invoice_id + status): payments.paid → TX: checkout_group paid, all orders paid + history, convert reservation → stock_movements(out) + reduce stock, enqueue email & notification to buyer and each supplier. Duplicate callback doesn't duplicate the effect.
-- **FR-5.7 order:expire Job**: scheduler every minute — pending checkout_group past payments.expires_at → group expired, orders expired + history(actor system), release reservation, notify buyer. Race with payment: transitions validated by the state machine (paid cannot become expired).
-- **FR-5.8 Order state machine** (order usecase, explicit transition table): pending_payment→{paid, expired, cancelled(user)}; paid→{processed(supplier), cancelled(user|supplier → triggers refund via `PaymentService` + returns stock)}; processed→shipped(supplier); shipped→delivered(supplier for own fleet | tracking job for courier — this phase: supplier endpoint marks delivered); delivered→completed(user confirm | autocomplete job after 3 days). Illegal transition → 409 `INVALID_STATUS_TRANSITION`. Every transition writes 1 history row.
-- **FR-5.9 Shipment**: `POST /supplier/orders/:id/ship` {method, courier_code?, tracking_number?} — tracking number required for courier; own fleet requires supplier own_fleet_enabled. `GET /user/orders/:id` shows shipment & history timeline.
-- **FR-5.10 Order listing**: user `GET /user/orders?status=`, supplier `GET /supplier/orders?status=`, admin `GET /admin/orders` (+filter by supplier/user/date, and `POST /admin/orders/:id/force-status` with audit log for intervention).
-- **FR-5.11 order:autocomplete Job**: delivered > 3 days → completed (actor system). (Supplier balance effect follows in phase 6 — event design: a single `onOrderCompleted` function called from one place.)
 
 ### Acceptance Criteria
-- AC-5.a E2E (mock RajaOngkir + mock payment): 2 suppliers in 1 cart → preview shows 2 shipping groups → confirm → 2 orders + 1 invoice → callback paid → stock correctly reduced, reservation converted, notifications sent → supplier A ships (courier), supplier B ships (own fleet) → delivered → user confirms completed for A; B completed via job (test by backdating delivered_at).
+- AC-5.a E2E (mock RajaOngkir + mock payment): 2 suppliers in 1 cart → preview shows 2 shipping groups → confirm → 2 orders + 1 invoice → callback paid → stock correctly reduced, reservation converted, notifications sent to buyer and both suppliers.
 - AC-5.b Two simultaneous confirm requests competing for the last stock (parallel test) → exactly one succeeds, one gets 409, no negative stock.
-- AC-5.c Unpaid → expire job: reservation released, effective stock restored, order expired. Callback paid sent 2x → single effect.
-- AC-5.d Cancel while paid → refund called (mock recorded), stock returned, full history. Illegal transition (pending→shipped) → 409.
-- AC-5.e Xendit unreachable/mocked-down — checkout returns 502 with a clear error, monolith itself stays up (no crash, no other endpoints affected).
+- AC-5.c Callback paid sent 2x → single effect (no double stock deduction, no duplicate notification).
+- AC-5.d Xendit unreachable/mocked-down — checkout returns 502 with a clear error, monolith itself stays up (no crash, no other endpoints affected).
 
 ---
 
-## PHASE 6 — Post-transaction
+## PHASE 6 — Order Lifecycle & Shipment
+
+**Goal:** a paid order runs to completion: processed → shipped → delivered → completed, with cancellation/expiry/refund handled correctly.
+
+**In scope:** order state machine (from `paid` onward), shipment, order listing, `order:expire` job, `order:autocomplete` job.
+**Out of scope:** settlement/ledger effects of completion (phase 7 — this phase only calls a single `onOrderCompleted` hook point).
+
+### Functional Requirements
+- **FR-6.1 order:expire Job**: scheduler every minute — pending checkout_group past payments.expires_at → group expired, orders expired + history(actor system), release reservation, notify buyer. Race with payment: transitions validated by the state machine (paid cannot become expired).
+- **FR-6.2 Order state machine** (order usecase, explicit transition table): pending_payment→{paid, expired, cancelled(user)}; paid→{processed(supplier), cancelled(user|supplier → triggers refund via `PaymentService` + returns stock)}; processed→shipped(supplier); shipped→delivered(supplier for own fleet | tracking job for courier — this phase: supplier endpoint marks delivered); delivered→completed(user confirm | autocomplete job after 3 days). Illegal transition → 409 `INVALID_STATUS_TRANSITION`. Every transition writes 1 history row.
+- **FR-6.3 Shipment**: `POST /supplier/orders/:id/ship` {method, courier_code?, tracking_number?} — tracking number required for courier; own fleet requires supplier own_fleet_enabled. `GET /user/orders/:id` shows shipment & history timeline.
+- **FR-6.4 Order listing**: user `GET /user/orders?status=`, supplier `GET /supplier/orders?status=`, admin `GET /admin/orders` (+filter by supplier/user/date, and `POST /admin/orders/:id/force-status` with audit log for intervention).
+- **FR-6.5 order:autocomplete Job**: delivered > 3 days → completed (actor system). (Supplier balance effect follows in phase 7 — event design: a single `onOrderCompleted` function called from one place.)
+
+### Acceptance Criteria
+- AC-6.a E2E multi-supplier: order paid in phase 5 → supplier A ships (courier), supplier B ships (own fleet) → delivered → user confirms completed for A; B completed via job (test by backdating delivered_at).
+- AC-6.b Unpaid → expire job: reservation released, effective stock restored, order expired.
+- AC-6.c Cancel while paid → refund called (mock recorded), stock returned, full history. Illegal transition (pending→shipped) → 409.
+- AC-6.d Order listing correctly filtered per role (user sees own orders only, supplier sees own orders only, admin sees all + can force-status with audit log entry).
+
+---
+
+## PHASE 7 — Post-transaction
 
 **Goal:** trust & money flow: product reviews, complete notifications, and auditable ledger-based supplier payouts.
 
 ### Functional Requirements
-- **FR-6.1 Settlement on complete**: `onOrderCompleted` → TX: ledger credit_order (subtotal + shipping if own fleet) and debit_commission (4% of subtotal), both with balance_after; update supplier_balances (pending→available per design: simplified — incoming balance goes straight to available upon completion). Idempotent per order (unique constraint ref).
-- **FR-6.2 Ledger**: append-only (no update/delete endpoint; DB: revoke UPDATE/DELETE or block via trigger). `GET /supplier/ledger?type=&from=&to=` paginated + running balance. Consistency: Σ ledger = balance (proven by test).
-- **FR-6.3 Withdraw**: `POST /supplier/withdraws` {amount, bank_account_id} — amount ≥ Rp50.000, ≤ available; TX: hold (available−, pending_withdraw row NOT yet written to ledger — hold is enough in balances + request status). `GET /supplier/withdraws`. Cancellable by supplier only while status is requested.
-- **FR-6.4 Approval & disbursement**: `POST /admin/withdraws/:id/approve` → calls `PaymentService`.CreateDisbursement → status processing; disbursement completed callback → status disbursed + ledger debit_withdraw + release hold; failed → return hold, status failed + notification. `POST /admin/withdraws/:id/reject` {reason} → return hold. All admin actions → audit log.
-- **FR-6.5 Review**: `POST /user/orders/:orderId/items/:itemId/review` {rating 1–5, comment?, image_keys[] ≤3} — only the order owner with status completed, one review per order_item (409). Supplier reply: `POST /supplier/reviews/:id/reply` once. Product rating_avg & rating_count aggregate updated transactionally. Public: `GET /products/:slug/reviews?rating=&cursor=`.
-- **FR-6.6 Complete notifications**: ensure every event sends in-app + email: order paid/shipped/delivered/completed/cancelled/expired (buyer & supplier as relevant), new review (supplier), review reply (buyer), withdraw lifecycle (supplier), low stock. Email via the real `NotificationService` adapter (`internal/infra/mailjet`, templates, mock mode) replacing the phase 2 stub — without changing the usecase.
-- **FR-6.7 Light preferences**: `PATCH /user/me/notification-settings` {email_marketing: bool} — transactional emails always sent.
+- **FR-7.1 Settlement on complete**: `onOrderCompleted` → TX: ledger credit_order (subtotal + shipping if own fleet) and debit_commission (4% of subtotal), both with balance_after; update supplier_balances (pending→available per design: simplified — incoming balance goes straight to available upon completion). Idempotent per order (unique constraint ref).
+- **FR-7.2 Ledger**: append-only (no update/delete endpoint; DB: revoke UPDATE/DELETE or block via trigger). `GET /supplier/ledger?type=&from=&to=` paginated + running balance. Consistency: Σ ledger = balance (proven by test).
+- **FR-7.3 Withdraw**: `POST /supplier/withdraws` {amount, bank_account_id} — amount ≥ Rp50.000, ≤ available; TX: hold (available−, pending_withdraw row NOT yet written to ledger — hold is enough in balances + request status). `GET /supplier/withdraws`. Cancellable by supplier only while status is requested.
+- **FR-7.4 Approval & disbursement**: `POST /admin/withdraws/:id/approve` → calls `PaymentService`.CreateDisbursement → status processing; disbursement completed callback → status disbursed + ledger debit_withdraw + release hold; failed → return hold, status failed + notification. `POST /admin/withdraws/:id/reject` {reason} → return hold. All admin actions → audit log.
+- **FR-7.5 Review**: `POST /user/orders/:orderId/items/:itemId/review` {rating 1–5, comment?, image_keys[] ≤3} — only the order owner with status completed, one review per order_item (409). Supplier reply: `POST /supplier/reviews/:id/reply` once. Product rating_avg & rating_count aggregate updated transactionally. Public: `GET /products/:slug/reviews?rating=&cursor=`.
+- **FR-7.6 Complete notifications**: ensure every event sends in-app + email: order paid/shipped/delivered/completed/cancelled/expired (buyer & supplier as relevant), new review (supplier), review reply (buyer), withdraw lifecycle (supplier), low stock. Email via the real `NotificationService` adapter (`internal/infra/mailjet`, templates, mock mode) replacing the phase 2 stub — without changing the usecase.
+- **FR-7.7 Light preferences**: `PATCH /user/me/notification-settings` {email_marketing: bool} — transactional emails always sent.
 
 ### Acceptance Criteria
-- AC-6.a Order of Rp2.000.000 (courier shipping) completed → ledger: credit 2.000.000, debit 80.000; available = 1.920.000. Second order with own fleet → shipping also credited. Running `onOrderCompleted` 2x → single effect.
-- AC-6.b Withdraw 1.000.000 → available drops immediately; reject → returned; approve+disbursement success (mock) → ledger debit_withdraw, Σ ledger = balance. Attempting to UPDATE a ledger row via SQL → rejected by DB.
-- AC-6.c Review on a not-yet-completed order → 403; second review on the same item → 409; product rating correctly computed after 3 reviews (avg & count).
-- AC-6.d Mailjet unreachable/mocked-down → actions still succeed, email goes into Asynq retry (not a transaction failure).
+- AC-7.a Order of Rp2.000.000 (courier shipping) completed → ledger: credit 2.000.000, debit 80.000; available = 1.920.000. Second order with own fleet → shipping also credited. Running `onOrderCompleted` 2x → single effect.
+- AC-7.b Withdraw 1.000.000 → available drops immediately; reject → returned; approve+disbursement success (mock) → ledger debit_withdraw, Σ ledger = balance. Attempting to UPDATE a ledger row via SQL → rejected by DB.
+- AC-7.c Review on a not-yet-completed order → 403; second review on the same item → 409; product rating correctly computed after 3 reviews (avg & count).
+- AC-7.d Mailjet unreachable/mocked-down → actions still succeed, email goes into Asynq retry (not a transaction failure).
 
 ---
 
-## PHASE 7 — Extras & Hardening
+## PHASE 8 — Supplementary Features
 
-**Goal:** supporting features, reports, and production readiness.
+**Goal:** nice-to-have features that round out the product but don't block a production launch.
 
 ### Functional Requirements
-- **FR-7.1 Wishlist**: `GET/POST/DELETE /user/wishlists` (toggle per product), is_wishlisted flag in product detail when logged in.
-- **FR-7.2 Banner**: CRUD `/admin/banners` (media, link, starts/ends schedule, sort) + public `GET /banners` (active & within schedule, cache 5 minutes).
-- **FR-7.3 Supplier report**: `GET /supplier/reports/summary?from=&to=` {gmv, orders_count, aov, top_products[5], sales_per_day[]} and `GET /supplier/reports/export` → enqueue `report:generate` → CSV to storage → download link notification (presigned, 24 hours).
-- **FR-7.4 Admin report**: `GET /admin/reports/summary` {gmv, commission, orders per status, active suppliers, new users, per-day series} + similar CSV export.
-- **FR-7.5 Security hardening**: helmet-equivalent headers, body limit 2MB (except uploads), centralized UUID param validation, dependency audit (`govulncheck`), auth-specific rate limit (5/minute), internal callback endpoint lockdown (secret + optional IP allowlist).
-- **FR-7.6 Observability**: `/metrics` Prometheus endpoint (http duration/status, asynq queue depth via exporter), Grafana dashboard JSON in `deploy/`, log sampling for 4xx.
-- **FR-7.7 Quality**: usecase coverage ≥70%; phase 5–6 E2E integration test suite run in CI (GitHub Actions: lint, test, build image); full demo seed (`make seed-demo`: 3 approved suppliers, 30 products, 1 order per status) for investor demo.
-- **FR-7.8 Documentation**: `docs/openapi.yaml` synced with all public/user/supplier/admin endpoints; README gets the project running < 10 minutes from clone; final PROGRESS.md.
+- **FR-8.1 Wishlist**: `GET/POST/DELETE /user/wishlists` (toggle per product), is_wishlisted flag in product detail when logged in.
+- **FR-8.2 Banner**: CRUD `/admin/banners` (media, link, starts/ends schedule, sort) + public `GET /banners` (active & within schedule, cache 5 minutes).
+- **FR-8.3 Supplier report**: `GET /supplier/reports/summary?from=&to=` {gmv, orders_count, aov, top_products[5], sales_per_day[]} and `GET /supplier/reports/export` → enqueue `report:generate` → CSV to storage → download link notification (presigned, 24 hours).
+- **FR-8.4 Admin report**: `GET /admin/reports/summary` {gmv, commission, orders per status, active suppliers, new users, per-day series} + similar CSV export.
 
 ### Acceptance Criteria
-- AC-7.a CI green end-to-end on PR. `make seed-demo` + login with 3 roles → the entire demo flow can be shown without touching the DB manually.
-- AC-7.b `/metrics` shows a request histogram; Grafana dashboard shows RPS & p95 during a light load test (k6/hey 100 VU, 1 minute) with no 5xx errors and p95 < 300ms for the catalog (external mocked).
-- AC-7.c govulncheck clean or all findings recorded with mitigation; internal callback endpoint without secret → 401.
-- AC-7.d OpenAPI valid (lint) and covers 100% of registered routes (proven by a script comparing routes vs spec).
+- AC-8.a Wishlist toggle persists across sessions; is_wishlisted flag correct on product detail for a logged-in user.
+- AC-8.b Banner outside its schedule window doesn't appear in the public endpoint; cache expires within 5 minutes of a change.
+- AC-8.c Supplier report export produces a downloadable CSV via a presigned URL valid for 24 hours; summary numbers match a manually computed sample.
+- AC-8.d Admin report summary numbers match a manually computed sample across orders/suppliers/users.
+
+---
+
+## PHASE 9 — Production Hardening
+
+**Goal:** the system is safe, observable, tested, and documented well enough to launch.
+
+### Functional Requirements
+- **FR-9.1 Security hardening**: helmet-equivalent headers, body limit 2MB (except uploads), centralized UUID param validation, dependency audit (`govulncheck`), auth-specific rate limit (5/minute), internal callback endpoint lockdown (secret + optional IP allowlist).
+- **FR-9.2 Observability**: `/metrics` Prometheus endpoint (http duration/status, asynq queue depth via exporter), Grafana dashboard JSON in `deploy/`, log sampling for 4xx.
+- **FR-9.3 Quality**: usecase coverage ≥70%; phase 5–7 E2E integration test suite run in CI (GitHub Actions: lint, test, build image); full demo seed (`make seed-demo`: 3 approved suppliers, 30 products, 1 order per status) for investor demo.
+- **FR-9.4 Documentation**: `docs/openapi.yaml` synced with all public/user/supplier/admin endpoints; README gets the project running < 10 minutes from clone; final PROGRESS.md.
+
+### Acceptance Criteria
+- AC-9.a CI green end-to-end on PR. `make seed-demo` + login with 3 roles → the entire demo flow can be shown without touching the DB manually.
+- AC-9.b `/metrics` shows a request histogram; Grafana dashboard shows RPS & p95 during a light load test (k6/hey 100 VU, 1 minute) with no 5xx errors and p95 < 300ms for the catalog (external mocked).
+- AC-9.c govulncheck clean or all findings recorded with mitigation; internal callback endpoint without secret → 401.
+- AC-9.d OpenAPI valid (lint) and covers 100% of registered routes (proven by a script comparing routes vs spec).
 
 ---
 

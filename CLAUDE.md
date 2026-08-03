@@ -78,9 +78,11 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete only if needed (default: no).
 2. **Auth + RBAC**: register/login/refresh/logout, email OTP verification (email:send job → stub `NotificationService` implementation for now), password reset, Auth+RequireRole middleware.
 3. **Supplier onboarding**: store registration, document upload (media module + MinIO), admin approval/reject + audit_logs.
 4. **Catalog**: category CRUD (admin), product+variant+image CRUD (supplier), inventory & movements, public catalog (tsvector search, filter, cursor pagination).
-5. **Core transactions**: cart → checkout preview (`ShippingService` via `internal/infra/rajaongkir` + fleet) → confirm (lock+reservation+split order) → `PaymentService` via `internal/infra/xendit` (real Xendit Invoice API calls) → paid webhook → order state machine → shipment.
-6. **Post-transaction**: review, in-app notifications, payout (ledger, withdraw, approval, disbursement).
-7. **Complementary**: wishlist, report, banner, hardening + end-to-end integration tests.
+5. **Cart, checkout & payment**: cart → checkout preview (`ShippingService` via `internal/infra/rajaongkir` + fleet) → confirm (lock+reservation+split order) → `PaymentService` via `internal/infra/xendit` (real Xendit Invoice API calls) → paid webhook. Ends at a `paid` order.
+6. **Order lifecycle & shipment**: order state machine from `paid` onward, shipment, order listing, expire/autocomplete jobs.
+7. **Post-transaction**: review, in-app notifications, payout (ledger, withdraw, approval, disbursement).
+8. **Supplementary features**: wishlist, banner, supplier/admin reports.
+9. **Production hardening**: security, observability, quality/CI, documentation.
 
 ## 9. Expected Way of Working from Claude Code
 
@@ -95,7 +97,7 @@ ID: UUID v7. Timestamps: timestamptz. Soft delete only if needed (default: no).
 
 1. Initialize git repo if not already done. Main branch: main.
 2. First commit: all planning documents (CLAUDE.md, docs/) with message docs: initial project planning documents.
-3. Create PROGRESS.md containing a checklist of ALL FRs and ACs from Phases 1–7 (copy from docs/requirements.md), all unchecked. Commit: docs: add progress tracker.
+3. Create PROGRESS.md containing a checklist of ALL FRs and ACs from Phases 1–9 (copy from docs/requirements.md), all unchecked. Commit: docs: add progress tracker.
 4. If GitHub remote is not set up, ask for the repo URL. Verify gh auth status works — if not, report it and use a fallback.
 
 ### Per-Phase Cycle

@@ -52,9 +52,11 @@ External providers (Xendit, Mailjet, RajaOngkir) are wired in as internal adapte
 | 2 | Auth + RBAC |
 | 3 | Supplier onboarding |
 | 4 | Catalog |
-| 5 | Core transactions (cart → checkout → payment → order lifecycle) |
-| 6 | Post-transaction (reviews, payout/ledger) |
-| 7 | Supplementary & hardening |
+| 5 | Cart, checkout & payment (ends at a `paid` order) |
+| 6 | Order lifecycle & shipment (paid → shipped → delivered → completed) |
+| 7 | Post-transaction (reviews, payout/ledger) |
+| 8 | Supplementary features (wishlist, banner, reports) |
+| 9 | Production hardening (security, observability, quality, docs) |
 
 ## License
 
