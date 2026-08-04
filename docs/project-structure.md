@@ -169,7 +169,7 @@ bangunin-project/
 ├── migrations/                      # golang-migrate: 000001_create_users.up.sql / .down.sql
 ├── seeds/                           # initial data: roles, building material categories, default admin
 ├── docs/
-│   ├── openapi.yaml                 # Swagger/OpenAPI spec (FR-7.8)
+│   ├── openapi.yaml                 # Swagger/OpenAPI spec (FR-9.4)
 │   ├── erd.md                       # ERD + Mermaid diagrams
 │   ├── requirements.md              # FR/AC per phase (this is the source doc for PROGRESS.md)
 │   ├── project-structure.md         # this document
@@ -216,9 +216,11 @@ bangunin-project/
 2. **Auth + RBAC** — register/login/refresh, email verification (via worker + notification service stub), role middleware.
 3. **Supplier onboarding** — store registration, document upload (media module), admin approval.
 4. **Catalog** — category, product + variants + images, inventory, public search & filter.
-5. **Core transactions** — cart → checkout (`ShippingService` shipping cost, order split) → `PaymentService` integration (Xendit) → order state machine → shipping/tracking.
-6. **Post-transaction** — review, in-app notification, payout/ledger + withdraw.
-7. **Extras** — wishlist, report/analytics, audit log, banner, hardening (rate limit, integration tests, light load testing).
+5. **Cart, checkout & payment** — cart → checkout (`ShippingService` shipping cost, order split) → `PaymentService` integration (Xendit), ends at a `paid` order.
+6. **Order lifecycle & shipment** — order state machine from `paid` onward, shipment, order listing, expire/autocomplete jobs.
+7. **Post-transaction** — review, in-app notification, payout/ledger + withdraw.
+8. **Supplementary features** — wishlist, report/analytics, banner.
+9. **Production hardening** — security, observability, quality/CI, documentation.
 
 Each phase produces something demoable, and dependencies between phases flow in one direction.
 
